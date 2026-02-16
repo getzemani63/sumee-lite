@@ -1,5 +1,16 @@
 import SwiftUI
 
+struct ThemeMetadata: Codable {
+    // Only decode lightweight properties for the list
+    let bubbleColorHex: String
+    let hue: Double?
+    let saturation: Double?
+    let brightness: Double?
+    let isDark: Bool?
+    let transparentIcons: Bool?
+    let musicFileName: String?
+}
+
 struct ThemeRegistry {
     static var allThemes: [AppTheme] {
         [
@@ -12,7 +23,7 @@ struct ThemeRegistry {
             ThemeRegistry.newYear,
             ThemeRegistry.sumeeXMB,
             ThemeRegistry.sumeeXMBBlack,
-        ]
+        ] + ThemeRegistry.getImportedThemes()
     }
     
     // Default Definitions
@@ -169,6 +180,7 @@ struct ThemeRegistry {
     // MARK: - Installation Management
     
     static func isInstalled(_ theme: AppTheme) -> Bool {
+        if theme.id.hasPrefix("imported_") { return true } // Always show imported themes
         return SettingsManager.shared.installedThemeIDs.contains(theme.id)
     }
     
@@ -185,5 +197,63 @@ struct ThemeRegistry {
             SettingsManager.shared.installedThemeIDs.remove(at: index)
             print("Uninstalled theme: \(theme.displayName)")
         }
+    }
+    
+    
+    // MARK: - Imported Themes
+    
+    private static func getThemesDirectory() -> URL? {
+        guard let documentsDirectory = FileManager.default.urls(for: .documentDirectory, in: .userDomainMask).first else { return nil }
+        let dir = documentsDirectory.appendingPathComponent("Themes", isDirectory: true)
+        // Ensure directory exists
+        if !FileManager.default.fileExists(atPath: dir.path) {
+            try? FileManager.default.createDirectory(at: dir, withIntermediateDirectories: true)
+        }
+        return dir
+    }
+    
+    static func getImportedThemes() -> [AppTheme] {
+        guard let dir = getThemesDirectory() else { return [] }
+        var themes: [AppTheme] = []
+        
+        
+        do {
+            let fileURLs = try FileManager.default.contentsOfDirectory(at: dir, includingPropertiesForKeys: [.contentModificationDateKey])
+            let jsonFiles = fileURLs.filter { $0.pathExtension == "json" && $0.lastPathComponent != "current_theme.json" }
+            
+            for url in jsonFiles {
+                // Optimization: Decode only metadata, skip heavy Base64 fields
+                if let data = try? Data(contentsOf: url),
+                   let metadata = try? JSONDecoder().decode(ThemeMetadata.self, from: data) {
+                    
+                    let filename = url.deletingPathExtension().lastPathComponent
+                    let id = "imported_\(filename)"
+                    
+                    // User Request: Use original filename as display name
+                    let displayName = filename
+                    
+                    // Determine Color
+                    // Use HSB if available, otherwise parsing hex is too heavy for list? No, hex is fine.
+                    // But we have HSB in metadata now.
+                    let color = Color(hue: metadata.hue ?? 0, saturation: metadata.saturation ?? 0, brightness: metadata.brightness ?? 1)
+                    
+                    let theme = AppTheme(
+                        id: id,
+                        displayName: displayName,
+                        icon: "doc.text.fill", // Or "arrow.down.doc.fill"
+                        color: color,
+                        backgroundType: .custom("Imported"),
+                        iconSet: (metadata.transparentIcons ?? false) ? 2 : 1,
+                        musicTrack: metadata.musicFileName,
+                        isDark: metadata.isDark ?? true
+                    )
+                    themes.append(theme)
+                }
+            }
+        } catch {
+            print("ThemeRegistry: Error listing themes: \(error)")
+        }
+        // Sort by newest first (reverse ID/filename usually works for timestamps)
+        return themes.sorted { $0.id > $1.id }
     }
 }

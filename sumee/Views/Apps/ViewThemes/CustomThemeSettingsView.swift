@@ -16,6 +16,9 @@ struct CustomThemeSettingsView: View {
     @State private var isRestarting = false
     @State private var scrollTask: Task<Void, Never>?
     
+    // Media Loading State
+    @State private var isImportingMedia = false
+    
     // Photo Picker State
     @State private var showPhotoPicker = false
     @State private var selectedPhotoItem: PhotosPickerItem?
@@ -170,7 +173,7 @@ struct CustomThemeSettingsView: View {
         .onChange(of: saturation) { _ in updateColor(hue, save: true) }
         .onChange(of: opacity) { _ in updateColor(hue, save: true) } // Reuse updateColor to trigger save
 
-        .photosPicker(isPresented: $showPhotoPicker, selection: $selectedPhotoItem, matching: .images)
+        .photosPicker(isPresented: $showPhotoPicker, selection: $selectedPhotoItem, matching: .any(of: [.images, .videos]))
         .onChange(of: selectedPhotoItem, perform: handlePhotoSelection)
         .photosPicker(isPresented: $showConsoleIconPicker, selection: $selectedConsolePhotoItem, matching: .images)
         .onChange(of: selectedConsolePhotoItem) { newItem in
@@ -304,7 +307,28 @@ struct CustomThemeSettingsView: View {
                 }
             }
             .zIndex(100)
+            .zIndex(100)
             .transition(.opacity)
+        }
+        
+        if isImportingMedia {
+             ZStack {
+                 Color.black.opacity(0.8).ignoresSafeArea()
+                 VStack(spacing: 20) {
+                     ProgressView()
+                         .progressViewStyle(CircularProgressViewStyle(tint: .white))
+                         .scaleEffect(2)
+                     Text("Processing Media...")
+                         .font(.title2)
+                         .fontWeight(.bold)
+                         .foregroundColor(.white)
+                     Text("Downloading from iCloud may take a moment")
+                         .font(.subheadline)
+                         .foregroundColor(.white.opacity(0.7))
+                 }
+             }
+             .zIndex(100)
+             .transition(.opacity)
         }
     }
     
@@ -574,6 +598,8 @@ struct CustomThemeSettingsView: View {
     private func handlePhotoSelection(_ item: PhotosPickerItem?) {
         guard let item = item else { return }
         
+        isImportingMedia = true
+        
         Task {
             // Retrieve RAW Data to support GIFs
             if let data = try? await item.loadTransferable(type: Data.self) {
@@ -581,6 +607,11 @@ struct CustomThemeSettingsView: View {
                     settings.saveCustomBackgroundImage(data: data)
                     AppStatusManager.shared.show("Background Updated", icon: "photo")
                     settingsChangeID = UUID() // Force Refresh
+                    isImportingMedia = false
+                }
+            } else {
+                await MainActor.run {
+                     isImportingMedia = false
                 }
             }
         }
@@ -588,6 +619,14 @@ struct CustomThemeSettingsView: View {
     
     // Logic Helpers
     
+    var customBackgroundIsVideo: Bool {
+        return settings.customBackgroundIsVideo
+    }
+    
+    private func saveCustomBackgroundVideo(data: Data) {
+        settings.saveCustomBackgroundImage(data: data)
+    }
+
     private func cycleStyle(reverse: Bool = false) {
         let current = settings.customBubbleStyle.rawValue
         let newRaw: Int
@@ -848,7 +887,8 @@ struct CustomThemeSettingsView: View {
                 
                 let data = try Data(contentsOf: selectedFile)
                 if let jsonString = String(data: data, encoding: .utf8) {
-                    if settings.importTheme(jsonString: jsonString) {
+                    // Pass original filename to preserve identity
+                    if settings.importTheme(jsonString: jsonString, filename: selectedFile.lastPathComponent) {
                         AppStatusManager.shared.show("Theme Imported!", icon: "checkmark.circle")
                         
                         // Trigger local refresh via Notification (or direct update)

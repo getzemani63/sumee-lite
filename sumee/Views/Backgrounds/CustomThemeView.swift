@@ -4,12 +4,19 @@ struct CustomThemeView: View {
     @ObservedObject var settings = SettingsManager.shared
     @State private var backgroundImage: UIImage? = SettingsManager.shared.getMemoryCachedCustomImage(blurred: SettingsManager.shared.customBlurBackground)
     @State private var gifData: Data?
+    @State private var videoURL: URL?
     @State private var currentBlurState: Bool? = SettingsManager.shared.customBlurBackground // Sync state
     
     var body: some View {
         GeometryReader { geo in
             Group {
-                if let data = gifData, !settings.customBlurBackground {
+                if let videoUrl = videoURL, !settings.customBlurBackground {
+                    LoopingVideoPlayer(videoURL: videoUrl)
+                        .frame(width: geo.size.width, height: geo.size.height)
+                        .clipped()
+                        .allowsHitTesting(false)
+                        .overlay(Color.black.opacity(settings.customDarkenBackground ? 0.3 : 0.0))
+                } else if let data = gifData, !settings.customBlurBackground {
                     // Render GIF
                     DataGIFView(gifData: data)
                         .frame(width: geo.size.width, height: geo.size.height)
@@ -58,6 +65,11 @@ struct CustomThemeView: View {
                 }
             }
         }
+        .onChange(of: settings.customBackgroundIsVideo) { _ in
+             DispatchQueue.global(qos: .userInitiated).async {
+                 loadCustomImage()
+             }
+        }
         .onReceive(NotificationCenter.default.publisher(for: Notification.Name("RefreshCustomThemeImage"))) { _ in
             DispatchQueue.global(qos: .userInitiated).async {
                 loadCustomImage()
@@ -70,8 +82,22 @@ struct CustomThemeView: View {
         
         // Logical Fork:
         // 1. If Blurred -> Show Static Blurred Image (Performance)
-        // 2. If Not Blurred + GIF -> Show Animated GIF
-        // 3. Else -> Show Static Image
+        // 2. If Not Blurred + Video -> Show Video
+        // 3. If Not Blurred + GIF -> Show Animated GIF
+        // 4. Else -> Show Static Image
+        
+        if !isBlurred && settings.customBackgroundIsVideo {
+             if let url = settings.getCustomBackgroundVideoURL(),
+                FileManager.default.fileExists(atPath: url.path) {
+                 DispatchQueue.main.async {
+                     self.videoURL = url
+                     self.backgroundImage = nil
+                     self.gifData = nil // Clear GIF
+                     self.currentBlurState = isBlurred
+                 }
+                 return
+             }
+        }
         
         if !isBlurred && SettingsManager.shared.hasCustomGIF {
             // Load GIF Data
@@ -79,6 +105,7 @@ struct CustomThemeView: View {
                 DispatchQueue.main.async {
                     self.gifData = data
                     self.backgroundImage = nil // Clear static
+                    self.videoURL = nil // Ensure Video is cleared
                     self.currentBlurState = isBlurred
                 }
                 return
@@ -86,14 +113,15 @@ struct CustomThemeView: View {
         }
         
         // Optimistic check: if we already have the right image loaded (and state matches), skip
-        // Only if we aren't switching away from GIF
-        if currentBlurState == isBlurred && backgroundImage != nil && gifData == nil { return }
+        // Only if we aren't switching away from GIF or Video
+        if currentBlurState == isBlurred && backgroundImage != nil && gifData == nil && videoURL == nil { return }
         
         // Fallback / Static
         if let image = SettingsManager.shared.loadCustomBackgroundImage(blurred: isBlurred) {
             DispatchQueue.main.async {
                 self.backgroundImage = image
                 self.gifData = nil // Clear GIF
+                self.videoURL = nil // Ensure Video is cleared
                 self.currentBlurState = isBlurred
             }
         }

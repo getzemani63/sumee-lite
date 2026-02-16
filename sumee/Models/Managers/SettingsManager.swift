@@ -2,6 +2,39 @@ import Foundation
 import Combine
 import UIKit
 import SwiftUI
+import AVFoundation
+
+struct ThemeExport: Codable {
+    let bubbleColorHex: String
+    let opacity: Double
+    let blurBubbles: Bool
+    let showDots: Bool
+    let transparentIcons: Bool
+    let darkenBackground: Bool
+    let blurBackground: Bool
+    let musicFileName: String?
+    let base64Image: String? // Optional: High quality JPEG base64
+    // New: Explicit HSB for robust file persistence
+    var hue: Double?
+    var saturation: Double?
+    var brightness: Double?
+    
+    // Music Data
+    var musicBase64: String?
+    var musicExtension: String?
+    
+    // 5. Console Icons (Map: Console RawValue -> Base64 String for export / Empty for local ref check)
+    var consoleIcons: [String: String]?
+    
+    // 6. Text Color (isDark: true = Light Text, false = Dark Text)
+    var isDark: Bool?
+    
+    // 7. System App Icons (Map: iconName -> Base64 String)
+    var systemIcons: [String: String]?
+    
+    // 8. Video Background
+    var base64Video: String?
+}
 
 class SettingsManager: ObservableObject {
     static let shared = SettingsManager()
@@ -364,6 +397,8 @@ class SettingsManager: ObservableObject {
         let styleRaw = d.object(forKey: "settings.customBubbleStyle") as? Int ?? 0 // Default Blur
         customBubbleStyle = CustomBubbleStyle(rawValue: styleRaw) ?? .blur
         
+        customBackgroundIsVideo = d.object(forKey: "settings.customBackgroundIsVideo") as? Bool ?? false
+        
         customBubbleOpacity = d.object(forKey: "settings.customBubbleOpacity") as? Double ?? 0.5
         customBubbleBlurBubbles = d.object(forKey: "settings.customBubbleBlurBubbles") as? Bool ?? true
         let loadedHue = d.object(forKey: "settings.customBubbleHue") as? Double
@@ -485,8 +520,18 @@ class SettingsManager: ObservableObject {
         return documentsDirectory.appendingPathComponent("custom_bg.gif")
     }
     
+    func getCustomBackgroundVideoURL() -> URL? {
+        guard let documentsDirectory = FileManager.default.urls(for: .documentDirectory, in: .userDomainMask).first else { return nil }
+        return documentsDirectory.appendingPathComponent("custom_bg.mp4")
+    }
+    
     var hasCustomGIF: Bool {
         guard let url = getCustomBackgroundGIFURL() else { return false }
+        return FileManager.default.fileExists(atPath: url.path)
+    }
+
+    var hasCustomVideo: Bool {
+        guard let url = getCustomBackgroundVideoURL() else { return false }
         return FileManager.default.fileExists(atPath: url.path)
     }
     
@@ -557,9 +602,63 @@ class SettingsManager: ObservableObject {
     }
     
     func saveCustomBackgroundImage(data: Data) {
+        // Check for Video Header (ftyp) - Often at bytes 4-8
+        let header = data.prefix(12)
+        let headerString = String(data: header, encoding: .ascii) ?? ""
+        
+        // Basic check for MP4/MOV signatures
+        if headerString.contains("ftyp") {
+            if let videoUrl = getCustomBackgroundVideoURL() {
+                try? data.write(to: videoUrl)
+                print("Saved Custom Wallpaper as Video")
+                
+                self.customBackgroundIsVideo = true
+                
+                // Clear GIF to avoid confusion
+                if let gifUrl = getCustomBackgroundGIFURL() {
+                    try? FileManager.default.removeItem(at: gifUrl)
+                }
+                
+                // Generate Thumbnail & Blur
+                generateThumbnailRaw(from: videoUrl) { thumbnail in
+                    guard let thumbnail = thumbnail else { return }
+                    
+                    // Save as main background image (fallback/preview)
+                    if let jpgUrl = self.getCustomBackgroundImageURL(),
+                       let jpgData = thumbnail.jpegData(compressionQuality: 0.8) {
+                        try? jpgData.write(to: jpgUrl)
+                    }
+                    
+                    // Cache
+                    self.cachedCustomImage = thumbnail
+                    
+                    // Blur
+                    if let blurUrl = self.getCustomBlurredBackgroundImageURL() {
+                        let blurred = self.applyBlur(to: thumbnail, radius: 20)
+                        self.cachedCustomBlurImage = blurred
+                        if let blurData = blurred.jpegData(compressionQuality: 0.7) {
+                            try? blurData.write(to: blurUrl)
+                        }
+                    }
+                    
+                    // Notify UI
+                    DispatchQueue.main.async {
+                        NotificationCenter.default.post(name: Notification.Name("RefreshCustomThemeImage"), object: nil)
+                    }
+                }
+                return
+            }
+        }
+        
+        self.customBackgroundIsVideo = false
+        
+        // Remove video if replacing with image/gif
+        if let videoUrl = getCustomBackgroundVideoURL() {
+            try? FileManager.default.removeItem(at: videoUrl)
+        }
+
         // Check signature for GIF (GIF87a or GIF89a)
-        let header = data.prefix(3)
-        if String(data: header, encoding: .ascii) == "GIF" {
+        if String(data: header.prefix(3), encoding: .ascii) == "GIF" {
             // It is a GIF!
             if let gifUrl = getCustomBackgroundGIFURL() {
                 try? data.write(to: gifUrl)
@@ -596,6 +695,24 @@ class SettingsManager: ObservableObject {
         // Notify UI to refresh
         DispatchQueue.main.async {
             NotificationCenter.default.post(name: Notification.Name("RefreshCustomThemeImage"), object: nil)
+        }
+    }
+    
+    private func generateThumbnailRaw(from url: URL, completion: @escaping (UIImage?) -> Void) {
+        let asset = AVAsset(url: url)
+        let generator = AVAssetImageGenerator(asset: asset)
+        generator.appliesPreferredTrackTransform = true
+        
+        let time = CMTime(seconds: 0.0, preferredTimescale: 600)
+        
+        generator.generateCGImagesAsynchronously(forTimes: [NSValue(time: time)]) { _, image, _, _, _ in
+            DispatchQueue.main.async {
+                if let image = image {
+                    completion(UIImage(cgImage: image))
+                } else {
+                    completion(nil)
+                }
+            }
         }
     }
     
@@ -653,6 +770,10 @@ class SettingsManager: ObservableObject {
     
     @Published var customBubbleStyle: CustomBubbleStyle {
         didSet { UserDefaults.standard.set(customBubbleStyle.rawValue, forKey: "settings.customBubbleStyle") }
+    }
+    
+    @Published var customBackgroundIsVideo: Bool {
+        didSet { UserDefaults.standard.set(customBackgroundIsVideo, forKey: "settings.customBackgroundIsVideo") }
     }
     
     @Published var customBubbleOpacity: Double {
@@ -937,49 +1058,39 @@ class SettingsManager: ObservableObject {
         }
     }
 
+    
     // Theme Export / Import
     
-    struct ThemeExport: Codable {
-        let bubbleColorHex: String
-        let opacity: Double
-        let blurBubbles: Bool
-        let showDots: Bool
-        let transparentIcons: Bool
-        let darkenBackground: Bool
-        let blurBackground: Bool
-        let musicFileName: String?
-        let base64Image: String? // Optional: High quality JPEG base64
-        // New: Explicit HSB for robust file persistence
-        var hue: Double?
-        var saturation: Double?
-        var brightness: Double?
-        
-        // Music Data
-        var musicBase64: String?
-        var musicExtension: String?
-        
-        // 5. Console Icons (Map: Console RawValue -> Base64 String for export / Empty for local ref check)
-        var consoleIcons: [String: String]?
-        
-        // 6. Text Color (isDark: true = Light Text, false = Dark Text)
-        var isDark: Bool?
-        
-        // 7. System App Icons (Map: iconName -> Base64 String)
-        var systemIcons: [String: String]?
-    }
-    
     func exportTheme() -> String? {
-        // 1. Get current image base64
+        // 1. Get current background (Video, GIF, or Image)
         var base64String: String? = nil
+        var base64VideoString: String? = nil
         
-        // Priority: Check for GIF first
-        if hasCustomGIF, let gifData = loadCustomBackgroundGIFData() {
-            // Export raw GIF data (No resizing to preserve animation)
+        // Priority 1: Video
+        if customBackgroundIsVideo, 
+           let videoURL = getCustomBackgroundVideoURL(),
+           let videoData = try? Data(contentsOf: videoURL) {
+            
+            base64VideoString = videoData.base64EncodedString()
+            print(" Exporting Video Wallpaper (\(videoData.count / 1024 / 1024) MB)")
+            
+            // Also export the thumbnail/image as fallback 'base64Image'
+            if let image = loadCustomBackgroundImage(blurred: false) {
+                 let resized = resizeImage(image, targetSize: CGSize(width: 1080, height: 1920))
+                 if let data = resized.jpegData(compressionQuality: 0.8) {
+                     base64String = data.base64EncodedString()
+                 }
+            }
+        }
+        // Priority 2: GIF
+        else if hasCustomGIF, let gifData = loadCustomBackgroundGIFData() {
+            // Export raw GIF data
             base64String = gifData.base64EncodedString()
             print(" Exporting GIF Wallpaper (\(gifData.count / 1024) KB)")
         } 
+        // Priority 3: Static Image
         else if let image = loadCustomBackgroundImage(blurred: false) {
-            // Static Image: Resize and Compress
+            // Resize and Compress
             let resized = resizeImage(image, targetSize: CGSize(width: 1080, height: 1920))
             if let data = resized.jpegData(compressionQuality: 0.8) {
                 base64String = data.base64EncodedString()
@@ -1024,7 +1135,8 @@ class SettingsManager: ObservableObject {
             musicExtension: nil,
             consoleIcons: iconsBase64.isEmpty ? nil : iconsBase64,
             isDark: customThemeIsDark,
-            systemIcons: systemIconsBase64.isEmpty ? nil : systemIconsBase64
+            systemIcons: systemIconsBase64.isEmpty ? nil : systemIconsBase64,
+            base64Video: base64VideoString
         )
         
         // 2a. Handle Music Export
@@ -1060,19 +1172,75 @@ class SettingsManager: ObservableObject {
         return nil
     }
     
-    func importTheme(jsonString: String) -> Bool {
+    // Persistent Library Logic
+    
+    private func getThemesDirectory() -> URL? {
+        guard let documentsDirectory = FileManager.default.urls(for: .documentDirectory, in: .userDomainMask).first else { return nil }
+        let dir = documentsDirectory.appendingPathComponent("Themes", isDirectory: true)
+        if !FileManager.default.fileExists(atPath: dir.path) {
+            try? FileManager.default.createDirectory(at: dir, withIntermediateDirectories: true)
+        }
+        return dir
+    }
+    
+    // Old getImportedThemes removed (Moved to ThemeRegistry)
+    
+    func loadImportedTheme(id: String) -> Bool {
+        guard id.hasPrefix("imported_") else { return false }
+        let filename = String(id.dropFirst("imported_".count))
+        
+        guard let dir = getThemesDirectory() else { return false }
+        let url = dir.appendingPathComponent("\(filename).json")
+        
+        guard let data = try? Data(contentsOf: url),
+              let jsonString = String(data: data, encoding: .utf8) else {
+            return false
+        }
+        
+        // Apply using existing logic, but do NOT save as a duplicate file
+        return importTheme(jsonString: jsonString, saveToFile: false)
+    }
+
+    func importTheme(jsonString: String, filename: String? = nil, saveToFile: Bool = true) -> Bool {
         guard let data = jsonString.data(using: .utf8) else { return false }
         
         let decoder = JSONDecoder()
         do {
             let theme = try decoder.decode(ThemeExport.self, from: data)
             
-            // 1. Handle Background Image
-            if let base64 = theme.base64Image,
+            // 0. Save to File (Library Persistence)
+            if saveToFile {
+                if let dir = getThemesDirectory() {
+                    // Use provided filename or generate unique timestamp
+                    let finalFilename: String
+                    if let name = filename {
+                        finalFilename = name
+                    } else {
+                        let formatter = DateFormatter()
+                        formatter.dateFormat = "yyyyMMdd_HHmmss"
+                        let timestamp = formatter.string(from: Date())
+                        finalFilename = "Theme_\(timestamp).json"
+                    }
+                    
+                    let url = dir.appendingPathComponent(finalFilename)
+                    
+                    try? jsonString.write(to: url, atomically: true, encoding: .utf8)
+                    print(" Saved Imported Theme to Library: \(filename)")
+                }
+            }
+            
+            // 1. Handle Background (Video Priority)
+            if let videoBase64 = theme.base64Video,
+               let videoData = Data(base64Encoded: videoBase64) {
+                // Save Video logic (auto-detects 'ftyp' and sets customBackgroundIsVideo = true)
+                saveCustomBackgroundImage(data: videoData)
+                print(" Imported Custom Video Background")
+            } 
+            else if let base64 = theme.base64Image,
                let imageData = Data(base64Encoded: base64) {
-                // Pass raw data to saveCustomBackgroundImage.
-     
+                // Pass raw data (GIF or Image)
                 saveCustomBackgroundImage(data: imageData)
+                print(" Imported Custom Image/GIF Background")
             }
             
             // 2. Handle Music Import

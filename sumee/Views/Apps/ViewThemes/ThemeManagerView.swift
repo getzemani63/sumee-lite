@@ -19,8 +19,10 @@ struct ThemeManagerView: View {
    
     
     // Data Source
+    @State private var cachedThemes: [AppTheme] = []
+    
     private var themes: [AppTheme] {
-        return ThemeRegistry.allThemes.filter { ThemeRegistry.isInstalled($0) }
+        return cachedThemes
     }
     
     var body: some View {
@@ -52,6 +54,16 @@ struct ThemeManagerView: View {
         .fullScreenCover(isPresented: $showCustomSettings) {
              CustomThemeSettingsView(isPresented: $showCustomSettings)
         }
+
+        .onAppear {
+            loadThemes()
+        }
+        .onChange(of: isPresented) { _, presented in
+            if presented { loadThemes() }
+        }
+        .onReceive(NotificationCenter.default.publisher(for: NSNotification.Name("ThemeImported"))) { _ in
+            loadThemes()
+        }
     }
     
     // Subviews
@@ -69,46 +81,63 @@ struct ThemeManagerView: View {
                             let isActive = isThemeActive(theme)
                             let isFocused = (selectedIndex == index)
                             
-                            Button(action: {
-                                guard isPresented else { return }
-                                selectedIndex = index
-                                applyTheme(themes[index])
-                            }) {
-                                HStack {
-                                    // Icon
-                                    ZStack {
-                                        Image(systemName: isActive ? "paintbrush.fill" : theme.icon)
-                                            .foregroundColor(isFocused ? focusedContrastColor(for: theme) : (isActive ? theme.color : .gray))
+                            // Visual Separator Logic
+                            let isFirstImported = theme.id.hasPrefix("imported_") && 
+                                                  (index == 0 || !themes[index - 1].id.hasPrefix("imported_"))
+                            
+                            VStack(spacing: 12) {
+                                if isFirstImported {
+                                    HStack {
+                                        Text("Imported Themes")
+                                            .font(.system(size: 14, weight: .bold, design: .rounded))
+                                            .foregroundColor(.secondary)
+                                            .padding(.top, 8)
+                                        Spacer()
                                     }
-                                    .frame(width: 24, height: 24)
-                                    
-                                    // Text
-                                    Text(theme.displayName)
-                                        .font(.system(size: 16, weight: .bold, design: .rounded))
-                                        .foregroundColor(isFocused ? focusedContrastColor(for: theme) : .primary)
-                                        .lineLimit(1)
-                                    
-                                    Spacer()
-                                    
-                                    if isActive {
-                                        Image(systemName: "checkmark")
-                                            .font(.system(size: 14, weight: .bold))
-                                            .foregroundColor(isFocused ? focusedContrastColor(for: theme) : theme.color)
-                                    }
+                                    .padding(.horizontal, 4)
                                 }
-                                .padding(.horizontal, 16)
-                                .frame(maxWidth: .infinity)
-                                .frame(height: 50)
-                                .background(
-                                    RoundedRectangle(cornerRadius: 18)
-                                        .fill(isFocused ? theme.color : (colorScheme == .dark ? Color(white: 0.2) : Color(white: 0.95)))
-                                )
-                                // Rotating Border for Focus
-                                .rotatingBorder(isSelected: isFocused, lineWidth: 4)
-                                .scaleEffect(isFocused ? 1.02 : 1.0)
-                                .animation(.spring(response: 0.3, dampingFraction: 0.7), value: isFocused)
+                                
+                                Button(action: {
+                                    guard isPresented else { return }
+                                    selectedIndex = index
+                                    applyTheme(themes[index])
+                                }) {
+                                    HStack {
+                                        // Icon
+                                        ZStack {
+                                            Image(systemName: isActive ? "paintbrush.fill" : theme.icon)
+                                                .foregroundColor(isFocused ? focusedContrastColor(for: theme) : (isActive ? theme.color : .gray))
+                                        }
+                                        .frame(width: 24, height: 24)
+                                        
+                                        // Text
+                                        Text(theme.displayName)
+                                            .font(.system(size: 16, weight: .bold, design: .rounded))
+                                            .foregroundColor(isFocused ? focusedContrastColor(for: theme) : .primary)
+                                            .lineLimit(1)
+                                        
+                                        Spacer()
+                                        
+                                        if isActive {
+                                            Image(systemName: "checkmark")
+                                                .font(.system(size: 14, weight: .bold))
+                                                .foregroundColor(isFocused ? focusedContrastColor(for: theme) : theme.color)
+                                        }
+                                    }
+                                    .padding(.horizontal, 16)
+                                    .frame(maxWidth: .infinity)
+                                    .frame(height: 50)
+                                    .background(
+                                        RoundedRectangle(cornerRadius: 18)
+                                            .fill(isFocused ? theme.color : (colorScheme == .dark ? Color(white: 0.2) : Color(white: 0.95)))
+                                    )
+                                    // Rotating Border for Focus
+                                    .rotatingBorder(isSelected: isFocused, lineWidth: 4)
+                                    .scaleEffect(isFocused ? 1.02 : 1.0)
+                                    .animation(.spring(response: 0.3, dampingFraction: 0.7), value: isFocused)
+                                }
+                                .buttonStyle(.plain)
                             }
-                            .buttonStyle(.plain)
                             .id(index)
                         }
                     }
@@ -272,6 +301,25 @@ struct ThemeManagerView: View {
     }
     
     private func applyTheme(_ theme: AppTheme) {
+        // Special Handling for Imported Themes
+        if theme.id.hasPrefix("imported_") {
+            if SettingsManager.shared.loadImportedTheme(id: theme.id) {
+                // Success - The imported theme replaces the current "Custom Photo" theme
+                // So we set the ID to "custom_photo" (the one SettingsManager uses for custom themes)
+                settings.activeThemeID = "custom_photo"
+                
+                // Force Background Update (Notify Global Observers if any)
+                NotificationCenter.default.post(name: NSNotification.Name("ThemeChanged"), object: nil)
+                
+                AppStatusManager.shared.show("Applied: \(theme.displayName)", icon: "paintbrush.fill")
+                AudioManager.shared.playSelectSound()
+                AudioManager.shared.playBackgroundMusic()
+            } else {
+                AppStatusManager.shared.show("Failed to Load Theme", icon: "exclamationmark.triangle")
+            }
+            return
+        }
+        
         settings.activeThemeID = theme.id
         AppStatusManager.shared.show("Applied: \(theme.displayName)", icon: "paintbrush.fill")
         AudioManager.shared.playSelectSound()
@@ -279,6 +327,16 @@ struct ThemeManagerView: View {
         AudioManager.shared.playBackgroundMusic()
     }
 
+    private func loadThemes() {
+        // Load in background to avoid stutter
+        Task {
+            let loaded = ThemeRegistry.allThemes.filter { ThemeRegistry.isInstalled($0) }
+            await MainActor.run {
+                self.cachedThemes = loaded
+            }
+        }
+    }
+    
     private func focusedContrastColor(for theme: AppTheme) -> Color {
         let lightThemes = ["grid", "standard"]
         if lightThemes.contains(theme.id) && colorScheme == .light {
