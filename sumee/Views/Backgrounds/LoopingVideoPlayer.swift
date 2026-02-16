@@ -14,6 +14,7 @@ struct LoopingVideoPlayer: UIViewRepresentable {
 }
 
 class PlayerUIView: UIView {
+    private var player: AVQueuePlayer?
     private var playerLayer = AVPlayerLayer()
     private var playerLooper: AVPlayerLooper?
     
@@ -22,6 +23,8 @@ class PlayerUIView: UIView {
         
         let playerItem = AVPlayerItem(url: url)
         let queuePlayer = AVQueuePlayer(playerItem: playerItem)
+        self.player = queuePlayer
+        
         playerLayer.player = queuePlayer
         playerLayer.videoGravity = .resizeAspectFill
         
@@ -32,6 +35,22 @@ class PlayerUIView: UIView {
         
         queuePlayer.isMuted = true
         queuePlayer.play()
+        
+        // Lifecycle Observers
+        NotificationCenter.default.addObserver(self, selector: #selector(appDidBecomeActive), name: UIApplication.didBecomeActiveNotification, object: nil)
+        NotificationCenter.default.addObserver(self, selector: #selector(appWillEnterForeground), name: UIScene.willEnterForegroundNotification, object: nil)
+    }
+    
+    deinit {
+        NotificationCenter.default.removeObserver(self)
+    }
+    
+    @objc func appDidBecomeActive() {
+        player?.play()
+    }
+    
+    @objc func appWillEnterForeground() {
+        player?.play()
     }
     
     override func layoutSubviews() {
