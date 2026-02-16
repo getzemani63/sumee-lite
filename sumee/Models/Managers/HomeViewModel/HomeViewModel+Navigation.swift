@@ -500,12 +500,13 @@ extension HomeViewModel {
         
         if hasSave {
             if liveAreaActionIndex == 0 {
-                launchGameFromPage(rom, mode: .resume)
+                // Delegate to View for coordinate-aware launch
+                liveAreaLaunchSignal.send(.resume)
             } else {
-                launchGameFromPage(rom, mode: .restart)
+                liveAreaLaunchSignal.send(.restart)
             }
         } else {
-            launchGameFromPage(rom, mode: .normal)
+            liveAreaLaunchSignal.send(.normal)
         }
     }
 }

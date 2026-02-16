@@ -16,6 +16,7 @@ class HomeViewModel: ObservableObject {
     
     // Persistence Props
     let saveLayoutSubject = PassthroughSubject<Void, Never>()
+    let liveAreaLaunchSignal = PassthroughSubject<GameLaunchMode, Never>()
     let persistenceQueue = DispatchQueue(label: "com.sumee.persistence", qos: .background)
     
     // UI State

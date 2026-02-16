@@ -91,6 +91,15 @@ struct GameLiveAreaView: View {
                 appearAnimation = true
             }
         }
+        .onReceive(viewModel.liveAreaLaunchSignal) { mode in
+            if mode == .resume {
+                // Use the tracked screenshot frame and image for visual continuity
+                animateAndLaunch(mode: .resume, sourceRect: screenshotFrame, image: autosaveImage)
+            } else {
+                // Default launch (center/fade)
+                animateAndLaunch(mode: mode)
+            }
+        }
     }
     
     // Launch Logic
