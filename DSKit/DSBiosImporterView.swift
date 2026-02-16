@@ -145,7 +145,7 @@ struct DSBiosImporterView: View {
             .navigationBarHidden(true)
             .fileImporter(
                 isPresented: $showingImporter,
-                allowedContentTypes: [.data],
+                allowedContentTypes: [.item],
                 allowsMultipleSelection: false
             ) { result in
                 handleImport(result: result)
@@ -160,7 +160,11 @@ struct DSBiosImporterView: View {
         case .success(let urls):
             if let url = urls.first {
                 // Simply import the file. The customization happens in the next screen.
-                _ = biosManager.importBios(url: url, type: type)
+                // Note: DSBiosManager already handles security scope using startAccessingSecurityScopedResource
+                 let success = biosManager.importBios(url: url, type: type)
+                 if !success {
+                     print("Import BIOS failed inside manager")
+                 }
             }
         case .failure(let error):
             print("Import failed: \(error.localizedDescription)")

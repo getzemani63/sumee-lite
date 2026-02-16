@@ -107,6 +107,13 @@ class DSAudio {
         tempBuffer.removeAll() // Ensure buffer is clear on start
         queueLock.unlock()
         
+        // If engine is already configured correctly and just paused, simply resume
+        if engine.isRunning && audioFormat?.sampleRate == rate {
+            print(" [DSAudio] Resuming existing engine (Fast Path)")
+            playerNode.play()
+            return
+        }
+        
         audioFormat = AVAudioFormat(standardFormatWithSampleRate: rate, channels: 2)
         
         guard let format = audioFormat else {
@@ -125,6 +132,8 @@ class DSAudio {
         } catch {
             print("[DSAudio] Critical: Audio Session configuration failed: \(error)")
         }
+
+        if engine.isRunning { engine.stop() } // Full reset if format changed
 
         engine.detach(playerNode) 
         engine.attach(playerNode)
@@ -146,10 +155,34 @@ class DSAudio {
     
     func stop() {
         if engine.isRunning {
-            playerNode.stop()
-            engine.stop()
-            print("[DSAudio] Audio Engine Detenido")
+            playerNode.pause() // Use pause instead of stop to keep engine warm if possible
+            if engine.isRunning { engine.pause() } // Pause engine instead of full stop to keep graph intact
+            print("[DSAudio] Audio Engine Pausado")
         }
+    }
+    
+    func shutdown() {
+        if engine.isRunning {
+             playerNode.stop()
+             engine.stop()
+             engine.reset()
+             print("[DSAudio] Audio Engine Apagado Completamente")
+        }
+    }
+    
+    func clearBuffer() {
+        queueLock.lock()
+        tempBuffer.removeAll(keepingCapacity: false)
+        buffersInFlight = 0
+        queueLock.unlock()
+        
+        if engine.isRunning {
+             // Stop the player immediately to drop any scheduled buffers
+             playerNode.stop() 
+             // IMPORTANT: Check if we need to restart playback immediately or wait?
+             // Usually cleared buffer means we want silence until new data arrives.
+        }
+        print(" [DSAudio] Audio buffers cleared.")
     }
     
     private var tempBuffer: [Int16] = []

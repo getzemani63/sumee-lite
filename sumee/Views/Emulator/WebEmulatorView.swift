@@ -153,7 +153,15 @@ struct WebEmulatorView: View {
                         case .resume:
                             if let url = autoSaveURL, FileManager.default.fileExists(atPath: url.path) {
                                 print(" LaunchMode: Resume. Loading immediately.")
-                                loadState(from: url)
+                                if rom.console == .nintendoDS {
+                                    // DS: Give audio engine a long "breather" to prevent audio stutter
+                                    // 4.0s allows core to stabilize and fill initial buffers
+                                    DispatchQueue.main.asyncAfter(deadline: .now() + 4.0) {
+                                        loadState(from: url)
+                                    }
+                                } else {
+                                    loadState(from: url)
+                                }
                                 return
                             }
                         case .normal:
@@ -289,8 +297,9 @@ struct WebEmulatorView: View {
                                         showResumeAlert = false // Hide prompt
                                         
                                         if rom.console == .nintendoDS {
-                                            // DS: Unpause immediately logic handled by core, but we delay state load
-                                            DispatchQueue.main.asyncAfter(deadline: .now() + 3.0) {
+                                            // DS: Give audio engine a "breather" before slamming state load
+                                            // 3.5s allows core to stabilize and fill initial buffers
+                                            DispatchQueue.main.asyncAfter(deadline: .now() + 3.5) {
                                                 loadState(from: url)
                                                 
                                                 // 3. Wipe Out (continue Upwards)

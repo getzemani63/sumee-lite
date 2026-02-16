@@ -226,7 +226,7 @@ extension HomeViewModel {
                 gameController.isSelectingWidget = false
                 gameController.widgetInternalNavigationActive = false
                 gameController.disableHomeNavigation = true
-                showSketch = true
+                
             }
             
 
@@ -249,7 +249,7 @@ extension HomeViewModel {
     func handleLeftTriggerPress() {
         if isIdleMode { resetIdleTimer(); return }
         
-        if !showPhotosGallery && !showMusicPlayer && !showSettings && !showSketch && !showGameSystems {
+        if !showPhotosGallery && !showMusicPlayer && !showSettings && !showGameSystems {
             // AudioManager.shared.playSelectSound()
             // Friends overlay removed
         }
@@ -269,15 +269,10 @@ extension HomeViewModel {
         }
         
         // Close overlays
-        if showSketch {
-            withAnimation(.easeOut(duration: 0.35)) { showSketch = false }
-        } else if showGameSystems {
-            // Handled by GameSystemsView/LaunchView internally to support exit animation
-            return
-        }
+   
     }
     
-    // MARK: - Random Game Logic
+    //  Random Game Logic
     
     func startRandomRotation() {
         pickRandomROM()

@@ -47,6 +47,10 @@
 		<key>NSAllowsArbitraryLoads</key>
 		<false/>
 	</dict>
+	<key>LSSupportsOpeningDocumentsInPlace</key>
+	<true/>
+	<key>UIFileSharingEnabled</key>
+	<true/>
     <key>LSApplicationQueriesSchemes</key>
     <array>
         <string>melonx</string>

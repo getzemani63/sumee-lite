@@ -41,10 +41,14 @@ class DSBiosManager: ObservableObject {
     func importBios(url: URL, type: BiosType) -> Bool {
         guard let sysDir = systemDirectory else { return false }
         
-        // Security: access security scoped resource if needed (usually handled by fileImporter but good practice)
+        // Security: access security scoped resource
         let accessing = url.startAccessingSecurityScopedResource()
         defer { if accessing { url.stopAccessingSecurityScopedResource() } }
         
+        // If we strictly need access and failed to get it, we might want to log it.
+        // However, for some files in open directories, it might return false but still be readable.
+        // We proceed, but capture the error if copy fails.
+
         let destinationFilename: String
         switch type {
         case .bios7: destinationFilename = "bios7.bin"
@@ -58,7 +62,13 @@ class DSBiosManager: ObservableObject {
             if fileManager.fileExists(atPath: destURL.path) {
                 try fileManager.removeItem(at: destURL)
             }
-            try fileManager.copyItem(at: url, to: destURL)
+            
+            // Use data reading/writing instead of copyItem to avoid permission attribute issues
+            // that essentially plague sideloaded apps when copying from security scoped URLs.
+            // BIOS files are small enough for this to be safe.
+            let data = try Data(contentsOf: url)
+            try data.write(to: destURL)
+            
             print(" [DSBiosManager] Imported \(destinationFilename)")
             
             // Refresh status on main thread

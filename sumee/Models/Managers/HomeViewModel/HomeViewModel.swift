@@ -198,7 +198,6 @@ class HomeViewModel: ObservableObject {
     func resetIdleTimer() {
         if isIdleMode {
             // Wake Up Logic moved to HomeLockScreenView (Drag-to-Unlock)
-            // Tap events are ignored here to prevent accidental unlocking
             return
         }
         
@@ -387,8 +386,6 @@ class HomeViewModel: ObservableObject {
         if mainInterfaceIndex == targetMainIndex {
             newIndex = max(0, mainInterfaceIndex - 1)
         } else if mainInterfaceIndex > targetMainIndex {
-            // We are looking at something to the right, index will shift down automatically
-            // But we need to decrement our index pointer manually to stay on the same visual "content"
             newIndex = mainInterfaceIndex - 1
         }
         
@@ -425,7 +422,7 @@ class HomeViewModel: ObservableObject {
         gameLaunchMode = mode
         // Delay emulator showing to allow GameLaunchView to perform its entry animation
         // using the geometry provided.
-        // Usually HomeView triggers GameLaunchView when showEmulator = true.
+        
         showEmulator = true
     }
 
