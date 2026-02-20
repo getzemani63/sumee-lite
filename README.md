@@ -8,6 +8,8 @@
 
 This repository is a **refactored Lite fork** of the original **SUMEE!** project, based on my own original codebase.
 
+To build SUMEE Lite, I used AI as a development assistant to help reduce and reorganize parts of the original SUMEE! codebase into a smaller, more modular structure.
+
 Main goal of this fork:
 - Make SUMEE! smaller and easier to maintain.
 - Split large files/features into smaller, modular components.
