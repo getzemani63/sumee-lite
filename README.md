@@ -1,6 +1,28 @@
 # SUMEE (Lite)
 
+> ⚠️ **Important Update:** This repository is a refactored Lite fork of my original SUMEE! codebase. The work focused on reducing project size, splitting large files into smaller modules, and improving maintainability. English ↔ Spanish translation tasks were also streamlined in this version.
+
 **SUMEE** is a highly stylized, nostalgic iOS launcher and frontend inspired by the **PS Vita** interface and the **Frutiger Aero** design language.
+
+## Project Context (Important)
+
+This repository is a **refactored Lite fork** of the original **SUMEE!** project, based on my own original codebase.
+
+Main goal of this fork:
+- Make SUMEE! smaller and easier to maintain.
+- Split large files/features into smaller, modular components.
+- Keep behavior and design identity while improving readability and iteration speed.
+
+About development workflow:
+- Core architecture, app logic, and project direction are authored manually.
+- Refactoring focused on decomposition into reusable pieces (views, managers, and feature modules).
+- English ↔ Spanish translation tasks were also made easier during this refactor process.
+
+### AI Usage in the Codebase
+
+AI tools were used as targeted support to speed up refactoring, cleanup, and writing tasks.
+
+However, the project design, core architecture, and technical decisions behind SUMEE! Lite are original work and are maintained manually.
 
 It transforms your iOS navigation experience with 3D bubble icons, "LiveArea" style app pages, floating cartridges, and a fully functional system interface including Music, Photos, and Game integrations.
 
