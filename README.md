@@ -111,35 +111,16 @@ You can now sideload this `SUMEE.ipa` using tools like **AltServer** or **SideSt
 
 ## Contributing
 
-Contributions are welcome! Please fork the repository and submit a Pull Request.
+Contributions are welcome. Please read [CONTRIBUTING.md](CONTRIBUTING.md) before opening a Pull Request.
 
 ## Acknowledgements
 
-Special thanks to the developers and community members who helped shape SUMEE:
-
-- **Stossy11** (Creator of MeloNX): Huge thanks for your help with URL schemes and AirPlay integration!
-- **Maftyマフティー (Manic EMU)**: Thank you for the permission to integrate your amazing skins.
-- **Delta Skins**: This project is fully compatible with Delta emulator skins.
-- **Music**: **k0o1**
-- **Assets & Design**:
-  - **@Nobody**
-  - **@Sloops**
-  - **@Kylixer**
-  - **@Limba44 (Kirby lover)**
+See [ACKNOWLEDGEMENTS.md](ACKNOWLEDGEMENTS.md).
 
 ## License
 
-This project is licensed under the **Creative Commons Attribution-NonCommercial-ShareAlike 4.0 International License (CC BY-NC-SA 4.0)**.
-**Copyright © 2026 SUMEE! (Getzemani Cruz Garcia / ParienteKun)**
-
-### You are free to:
-- **Share**: Copy and redistribute the material in any medium or format.
-- **Adapt**: Remix, transform, and build upon the material.
-
-### Under the following terms:
-- **Attribution**: You must give appropriate credit, provide a link to the license, and indicate if changes were made.
-- **NonCommercial**: You may **NOT** use the material for commercial purposes.
-- **ShareAlike**: If you remix, transform, or build upon the material, you must distribute your contributions under the same license as the original.
+This project is licensed under **CC BY-NC-SA 4.0**.
+See [LICENSE](LICENSE).
 
 
 ## Emulator Licenses
