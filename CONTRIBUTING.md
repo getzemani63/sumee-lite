@@ -1,4 +1,4 @@
-# Contributing to SUMEE Lite
+ # Contributing to SUMEE Lite
 
 Thank you for your interest in contributing.
 

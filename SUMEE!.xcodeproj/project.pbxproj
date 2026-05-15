@@ -13,6 +13,8 @@
 		E102C7F02EE8ED0D00DDA23A /* GBACore.swift in Sources */ = {isa = PBXBuildFile; fileRef = E102C7E72EE8ED0D00DDA23A /* GBACore.swift */; };
 		E102C7F12EE8ED0D00DDA23A /* GBAInput.swift in Sources */ = {isa = PBXBuildFile; fileRef = E102C7E82EE8ED0D00DDA23A /* GBAInput.swift */; };
 		E102C7F22EE8ED0D00DDA23A /* GBARenderView.swift in Sources */ = {isa = PBXBuildFile; fileRef = E102C7E92EE8ED0D00DDA23A /* GBARenderView.swift */; };
+		E11DFE692F43118A0037D1F0 /* desmume.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = E11DFE682F43118A0037D1F0 /* desmume.framework */; };
+		E11DFE6A2F4311910037D1F0 /* desmume.framework in Embed Libraries */ = {isa = PBXBuildFile; fileRef = E11DFE682F43118A0037D1F0 /* desmume.framework */; settings = {ATTRIBUTES = (CodeSignOnCopy, RemoveHeadersOnCopy, ); }; };
 		E126EB6E2EF7F19700BE9C90 /* ShareToSumee.appex in Embed Foundation Extensions */ = {isa = PBXBuildFile; fileRef = E126EB642EF7F19700BE9C90 /* ShareToSumee.appex */; settings = {ATTRIBUTES = (RemoveHeadersOnCopy, ); }; };
 		E12C128D2EE9321D00E3B7EE /* mgba.framework in Embed Libraries */ = {isa = PBXBuildFile; fileRef = E12C128C2EE9321D00E3B7EE /* mgba.framework */; settings = {ATTRIBUTES = (CodeSignOnCopy, RemoveHeadersOnCopy, ); }; };
 		E146ECCE2EFA37CC0082F891 /* SNESVirtualController.swift in Sources */ = {isa = PBXBuildFile; fileRef = E146ECCD2EFA37CC0082F891 /* SNESVirtualController.swift */; };
@@ -103,6 +105,7 @@
 				E1D2A2772EEC3E330021E012 /* pcsx_rearmed.framework in Embed Libraries */,
 				E1D2AD5D2EEDAB5A0021E012 /* Snes9x.framework in Embed Libraries */,
 				E1E92A6F2EEA4248001E2138 /* melonds.framework in Embed Libraries */,
+				E11DFE6A2F4311910037D1F0 /* desmume.framework in Embed Libraries */,
 			);
 			name = "Embed Libraries";
 			runOnlyForDeploymentPostprocessing = 0;
@@ -129,6 +132,7 @@
 		E102C7E92EE8ED0D00DDA23A /* GBARenderView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GBARenderView.swift; sourceTree = "<group>"; };
 		E102C7EA2EE8ED0D00DDA23A /* GBAShaders.metal */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.metal; path = GBAShaders.metal; sourceTree = "<group>"; };
 		E102C7EB2EE8ED0D00DDA23A /* GBAVirtualController.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GBAVirtualController.swift; sourceTree = "<group>"; };
+		E11DFE682F43118A0037D1F0 /* desmume.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; path = desmume.framework; sourceTree = "<group>"; };
 		E126EB642EF7F19700BE9C90 /* ShareToSumee.appex */ = {isa = PBXFileReference; explicitFileType = "wrapper.app-extension"; includeInIndex = 0; path = ShareToSumee.appex; sourceTree = BUILT_PRODUCTS_DIR; };
 		E12C128C2EE9321D00E3B7EE /* mgba.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; path = mgba.framework; sourceTree = "<group>"; };
 		E146ECCD2EFA37CC0082F891 /* SNESVirtualController.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SNESVirtualController.swift; sourceTree = "<group>"; };
@@ -315,6 +319,7 @@
 				E1D2A2762EEC3E330021E012 /* pcsx_rearmed.framework in Frameworks */,
 				E1D2AD5C2EEDAB5A0021E012 /* Snes9x.framework in Frameworks */,
 				E1E92A712EEA9489001E2138 /* melonds.framework in Frameworks */,
+				E11DFE692F43118A0037D1F0 /* desmume.framework in Frameworks */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -433,6 +438,7 @@
 		E1E9299E2EE99502001E2138 /* DSKit */ = {
 			isa = PBXGroup;
 			children = (
+				E11DFE682F43118A0037D1F0 /* desmume.framework */,
 				E152E22E2F02798800D2050D /* skins */,
 				E1E34ACA2EF957AD00EAA7E0 /* DSControlManager.swift */,
 				E1E92A742EEAA1E8001E2138 /* DSFirmwareConfigView.swift */,

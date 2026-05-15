@@ -67,25 +67,25 @@ struct GameAddSourceView: View {
                         }
                         .padding(.vertical, 8)
                         
-                        // MeloNX
-                        HStack(alignment: .top, spacing: 16) {
-                            Image("cart_melonx")
-                                .resizable()
-                                .aspectRatio(contentMode: .fit)
-                                .frame(width: 32, height: 32)
-                                .cornerRadius(8)
-                                .padding(.top, 4)
-                            
-                            VStack(alignment: .leading, spacing: 4) {
-                                Text("MeloNX Games")
-                                    .font(.headline)
-                                Text("1. Go to 'Add-ons' menu in SUMEE! Lite\n2. Add 'MeloNX' add-on\n3. Library syncs automatically")
-                                    .font(.caption)
-                                    .foregroundColor(.secondary)
-                                    .fixedSize(horizontal: false, vertical: true)
-                            }
-                        }
-                        .padding(.vertical, 8)
+                        // MeloNX (TEMPORARILY DISABLED)
+                        // HStack(alignment: .top, spacing: 16) {
+                        //     Image("cart_melonx")
+                        //         .resizable()
+                        //         .aspectRatio(contentMode: .fit)
+                        //         .frame(width: 32, height: 32)
+                        //         .cornerRadius(8)
+                        //         .padding(.top, 4)
+                        //     
+                        //     VStack(alignment: .leading, spacing: 4) {
+                        //         Text("MeloNX Games")
+                        //             .font(.headline)
+                        //         Text("1. Go to 'Add-ons' menu in SUMEE! Lite\n2. Add 'MeloNX' add-on\n3. Library syncs automatically")
+                        //             .font(.caption)
+                        //             .foregroundColor(.secondary)
+                        //             .fixedSize(horizontal: false, vertical: true)
+                        //     }
+                        // }
+                        // .padding(.vertical, 8)
                         
                         // Web ROMs
                         HStack(alignment: .top, spacing: 16) {
@@ -109,7 +109,8 @@ struct GameAddSourceView: View {
                         }
                         .padding(.vertical, 8)
                     } label: {
-                        Label("Integrations (iOS & MeloNX)", systemImage: "link")
+                        // Label("Integrations (iOS & MeloNX)", systemImage: "link")
+                        Label("Integrations", systemImage: "link")
                             .font(.headline)
                     }
 

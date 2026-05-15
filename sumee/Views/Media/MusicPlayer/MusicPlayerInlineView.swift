@@ -7,6 +7,7 @@ struct MusicPlayerInlineView: View {
     @ObservedObject var viewModel: HomeViewModel
     @ObservedObject private var gameController = GameControllerManager.shared
     @ObservedObject private var musicPlayer = MusicPlayerManager.shared
+    @ObservedObject private var settings = SettingsManager.shared
     @State private var showContent = false
     @State private var selectedIndex: Int = 0
     @AppStorage("musicPlayer.lastCategory") private var selectedCategory: MusicCategory = .system
@@ -55,6 +56,10 @@ struct MusicPlayerInlineView: View {
             song.title.localizedCaseInsensitiveContains(searchText) ||
             song.artist.localizedCaseInsensitiveContains(searchText)
         }
+    }
+
+    private var activeTheme: AppTheme {
+        settings.activeTheme
     }
     
     var body: some View {
@@ -253,9 +258,9 @@ struct MusicPlayerInlineView: View {
                             }
                         }
                         .padding(12)
-                        .background(SettingsManager.shared.reduceTransparency ? (SettingsManager.shared.activeTheme.isDark ? Color.black.opacity(0.6) : Color.white.opacity(0.8)) : Color.clear)
-                        .background(.ultraThinMaterial)
-                        .cornerRadius(16)
+                        .background {
+                            BubbleBackground(cornerRadius: 16, theme: activeTheme)
+                        }
                         .padding(.horizontal, 16)
                         .transition(.move(edge: .trailing).combined(with: .opacity))
                     } else {
@@ -265,9 +270,9 @@ struct MusicPlayerInlineView: View {
                             .fontWeight(.bold)
                             .padding(.horizontal, 16)
                             .padding(.vertical, 8)
-                            .background(SettingsManager.shared.reduceTransparency ? (SettingsManager.shared.activeTheme.isDark ? Color.black.opacity(0.6) : Color.white.opacity(0.8)) : Color.clear)
-                            .background(.thickMaterial)
-                            .cornerRadius(16)
+                            .background {
+                                BubbleBackground(cornerRadius: 16, theme: activeTheme)
+                            }
                             .padding(.leading)
                             .transition(.move(edge: .leading).combined(with: .opacity))
                         
@@ -284,9 +289,9 @@ struct MusicPlayerInlineView: View {
                                     .font(.system(size: 20, weight: .bold))
                                     .foregroundColor(.primary)
                                     .padding(12)
-                                    .background(SettingsManager.shared.reduceTransparency ? (SettingsManager.shared.activeTheme.isDark ? Color.black.opacity(0.6) : Color.white.opacity(0.8)) : Color.clear)
-                                    .background(.thickMaterial)
-                                    .clipShape(Circle())
+                                    .background {
+                                        BubbleBackground(cornerRadius: 999, theme: activeTheme)
+                                    }
                             }
                             .padding(.trailing, 16)
                             .transition(.scale.combined(with: .opacity))
@@ -320,19 +325,14 @@ struct MusicPlayerInlineView: View {
                                     .padding(.vertical, 8)
                                     .background(
                                         ZStack {
+                                            BubbleBackground(cornerRadius: 16, theme: activeTheme)
                                             if selectedCategory == category {
-                                                Color(red: 0.35, green: 0.45, blue: 0.55)
-                                            } else {
-                                                if SettingsManager.shared.reduceTransparency {
-                                                    SettingsManager.shared.activeTheme.isDark ? Color.black.opacity(0.6) : Color.white.opacity(0.8)
-                                                } else {
-                                                    Rectangle().fill(.thickMaterial)
-                                                }
+                                                RoundedRectangle(cornerRadius: 16)
+                                                    .fill(activeTheme.color.opacity(0.35))
                                             }
                                         }
                                     )
-                                    .foregroundColor(selectedCategory == category ? .white : .primary)
-                                    .cornerRadius(16)
+                                    .foregroundColor(.primary)
                             }
                         }
                     }
@@ -345,9 +345,9 @@ struct MusicPlayerInlineView: View {
                     .fontWeight(.bold)
                     .padding(.horizontal, 16)
                     .padding(.vertical, 8)
-                    .background(SettingsManager.shared.reduceTransparency ? (SettingsManager.shared.activeTheme.isDark ? Color.black.opacity(0.6) : Color.white.opacity(0.8)) : Color.clear)
-                    .background(.thickMaterial)
-                    .cornerRadius(12)
+                    .background {
+                        BubbleBackground(cornerRadius: 12, theme: activeTheme)
+                    }
                     .padding(.bottom, 10)
             }
             
@@ -378,11 +378,16 @@ struct MusicPlayerInlineView: View {
                         }
                         .padding(.horizontal, 16)
                         .padding(.vertical, 8)
-                        .padding(.horizontal, 16)
-                        .padding(.vertical, 8)
-                        .background(selectedCategory == category ? Color.blue : (SettingsManager.shared.reduceTransparency ? Color.gray.opacity(0.3) : Color.gray.opacity(0.2)))
-                        .foregroundColor(selectedCategory == category ? .white : .primary)
-                        .cornerRadius(20)
+                        .background {
+                            ZStack {
+                                BubbleBackground(cornerRadius: 20, theme: activeTheme)
+                                if selectedCategory == category {
+                                    RoundedRectangle(cornerRadius: 20)
+                                        .fill(activeTheme.color.opacity(0.35))
+                                }
+                            }
+                        }
+                        .foregroundColor(.primary)
                     }
                 }
             }
@@ -408,9 +413,9 @@ struct MusicPlayerInlineView: View {
                 .foregroundColor(.primary) // Use primary color for better contrast on material
                 .padding(.horizontal, 16)
                 .padding(.vertical, 10)
-                .background(SettingsManager.shared.reduceTransparency ? (SettingsManager.shared.activeTheme.isDark ? Color.black.opacity(0.6) : Color.white.opacity(0.8)) : Color.clear)
-                .background(.thickMaterial)
-                .cornerRadius(20)
+                .background {
+                    BubbleBackground(cornerRadius: 20, theme: activeTheme)
+                }
             }
             Spacer()
         }

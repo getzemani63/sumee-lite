@@ -61,26 +61,16 @@ struct PSXEmulatorView: View {
                         .zIndex(10)
                 }
                 
-                // 3. Fast Forward Button
-                if !showMenu && !gameController.isControllerConnected {
-                    fastForwardButton
-                        .zIndex(20)
-                }
+                // 3. Fast Forward Button (TEMPORARILY DISABLED)
+                // if !showMenu && !gameController.isControllerConnected {
+                //     fastForwardButton
+                //         .zIndex(20)
+                // }
             }
         }
         .onAppear {
             // Direct File Path Loading for Efficiency (Avoids 700MB RAM usage)
             gameController.isGameplayMode = true
-            
-            // Skip BIOS if resuming
-            if launchMode == .resume {
-                print("⏩ PSXEmulatorView: Skipping BIOS for Resume Mode")
-                isPlayingBIOS = false
-                // Note: core.resume() will be called when we are ready or after load? 
-                // Usually BIOSIntroView callback calls core.resume()
-                // So we should call it here if we are skipping BIOS
-                core.resume() 
-            }
             
             Air.connection { connected in
                 DispatchQueue.main.async {

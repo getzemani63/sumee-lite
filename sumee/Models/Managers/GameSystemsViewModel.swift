@@ -120,8 +120,9 @@ class GameSystemsViewModel: ObservableObject {
     }
     
     func updateData() {
-        // 1. Get ALL supported consoles (Excluding PSP as requested)
-        let allConsoles = ROMItem.Console.allCases.filter { $0 != .psp }
+        // 1. Get supported consoles
+        // TEMP: Hide MeloNX from carousel/navigation for now.
+        let allConsoles = ROMItem.Console.allCases.filter { $0 != .psp && $0 != .meloNX }
         
         // Check for saved custom order
         if let savedOrder = UserDefaults.standard.stringArray(forKey: "consoleCustomOrder") {

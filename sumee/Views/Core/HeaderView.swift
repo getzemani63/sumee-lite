@@ -46,18 +46,18 @@ struct HeaderView: View {
     @State private var showMusicPlayer = false // State for music player sheet
     
     var body: some View {
-        Group {
-            if UIDevice.current.userInterfaceIdiom == .pad || verticalSizeClass == .compact {
-                // FORCE Horizontal Layout for iPad or Landscape iPhone
-
-                horizontalLayout
-            } else {
-                // Portrait iPhone: Use ViewThatFits to adapt if needed (though usually Vertical)
-                ViewThatFits(in: .horizontal) {
-                    horizontalLayout
+        GeometryReader { geo in
+            VStack(spacing: 0) {
+                if geo.size.height > geo.size.width {
+                    // Always pill style in vertical orientation
                     verticalLayout
+                } else {
+                    horizontalLayout
                 }
+
+                Spacer(minLength: 0)
             }
+            .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
         }
         .animation(.easeOut(duration: 0.3), value: isShowingPhotos)
         .animation(.easeOut(duration: 0.3), value: isShowingGameBoy)
@@ -134,21 +134,40 @@ struct HeaderView: View {
     @ViewBuilder
     private func resolvedThemeBackground<S: Shape>(for shape: S) -> some View {
         if settings.activeTheme.id == "custom_photo" {
-            ZStack {
-                // 1. Blur
-                if settings.customBubbleBlurBubbles {
-                    shape.fill(Material.ultraThin)
-                        .environment(\.colorScheme, .dark)
-                }
-                
-                // 2. Color + Opacity
-                shape.fill(settings.customBubbleColor.opacity(settings.customBubbleOpacity))
-                
-                // 3. Border
-                shape.stroke(Color.white.opacity(0.2), lineWidth: 1)
+            if #available(iOS 26.0, *), settings.customBubbleUseLiquidGlass {
+                customHeaderLayers(for: shape, includeClassicBlur: false, includeBorder: false)
+                    .glassEffect(
+                        .regular.tint(settings.customBubbleColor.opacity(settings.customBubbleOpacity)),
+                        in: shape
+                    )
+            } else {
+                customHeaderLayers(
+                    for: shape,
+                    includeClassicBlur: settings.customBubbleBlurBubbles,
+                    includeBorder: true
+                )
             }
         } else {
             shape.fill(headerBackgroundStyle)
+        }
+    }
+
+    @ViewBuilder
+    private func customHeaderLayers<S: Shape>(
+        for shape: S,
+        includeClassicBlur: Bool,
+        includeBorder: Bool
+    ) -> some View {
+        ZStack {
+            if includeClassicBlur {
+                shape.fill(Material.ultraThin)
+                    .environment(\.colorScheme, .dark)
+            }
+
+            shape.fill(settings.customBubbleColor.opacity(settings.customBubbleOpacity))
+            if includeBorder {
+                shape.stroke(Color.white.opacity(0.2), lineWidth: 1)
+            }
         }
     }
     

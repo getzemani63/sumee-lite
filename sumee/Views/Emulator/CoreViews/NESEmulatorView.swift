@@ -56,10 +56,11 @@ struct NESEmulatorView: View {
                         .zIndex(10)
                 }
                 
-                if !showMenu && !gameController.isControllerConnected {
-                    fastForwardButton
-                        .zIndex(20)
-                }
+                // Fast Forward Button (TEMPORARILY DISABLED)
+                // if !showMenu && !gameController.isControllerConnected {
+                //     fastForwardButton
+                //         .zIndex(20)
+                // }
             }
         }
         .onAppear {

@@ -4,20 +4,36 @@ import GameController
 
 class DSInput: ObservableObject {
     static let shared = DSInput()
+    static var debugTouchLogsEnabled = true
     
     @Published var isControllerConnected = false
     var buttonMask: UInt16 = 0
+    private var physicalButtonMask: UInt16 = 0
     private var virtualButtonMask: UInt16 = 0
     
     // Touch State
     var touchX: Int16 = 0
     var touchY: Int16 = 0
     var isTouched: Bool = false
+    private var lastTouchLogAt: TimeInterval = 0
+    private var lastTouchLogSignature: String = ""
     
-    func setTouch(x: Int16, y: Int16, pressed: Bool) {
+    func setTouch(x: Int16, y: Int16, pressed: Bool, source: String = "unknown") {
         touchX = x
         touchY = y
         isTouched = pressed
+
+        guard Self.debugTouchLogsEnabled else { return }
+
+        let signature = "\(pressed)-\(x)-\(y)-\(source)"
+        let now = Date.timeIntervalSinceReferenceDate
+        let shouldLog = (signature != lastTouchLogSignature) && (pressed || now - lastTouchLogAt > 0.06)
+
+        if shouldLog {
+            print("👆 [DSTouchInput] src=\(source) pressed=\(pressed) x=\(x) y=\(y)")
+            lastTouchLogAt = now
+            lastTouchLogSignature = signature
+        }
     }
     
     private var currentController: GCController?
@@ -50,6 +66,9 @@ class DSInput: ObservableObject {
         for id in pressedIDs {
             virtualButtonMask |= (1 << id)
         }
+
+        // Keep effective mask updated even before next poll callback.
+        buttonMask = physicalButtonMask | virtualButtonMask
     }
     
     func setButton(_ id: Int, pressed: Bool) {
@@ -58,6 +77,9 @@ class DSInput: ObservableObject {
         } else {
             virtualButtonMask &= ~(1 << id)
         }
+
+        // Keep effective mask updated even before next poll callback.
+        buttonMask = physicalButtonMask | virtualButtonMask
     }
     
     func pollInput() {
@@ -89,6 +111,7 @@ class DSInput: ObservableObject {
             if ControllerMappingManager.shared.isPressed(DSAction.right, gamepad: gamepad, console: "Nintendo DS") { mask |= (1 << Self.ID_RIGHT) }
         }
         
+        self.physicalButtonMask = mask
         self.buttonMask = mask | virtualButtonMask
     }
     

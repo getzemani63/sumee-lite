@@ -8,6 +8,7 @@ struct ThemeExport: Codable {
     let bubbleColorHex: String
     let opacity: Double
     let blurBubbles: Bool
+    let liquidGlass: Bool?
     let showDots: Bool
     let transparentIcons: Bool
     let darkenBackground: Bool
@@ -34,6 +35,119 @@ struct ThemeExport: Codable {
     
     // 8. Video Background
     var base64Video: String?
+
+    private enum CodingKeys: String, CodingKey {
+        case bubbleColorHex
+        case opacity
+        case blurBubbles
+        case liquidGlass
+        case legacyLiquidGlassBubbles = "liquidGlassBubbles"
+        case showDots
+        case transparentIcons
+        case darkenBackground
+        case blurBackground
+        case musicFileName
+        case base64Image
+        case hue
+        case saturation
+        case brightness
+        case musicBase64
+        case musicExtension
+        case consoleIcons
+        case isDark
+        case systemIcons
+        case base64Video
+    }
+
+    init(
+        bubbleColorHex: String,
+        opacity: Double,
+        blurBubbles: Bool,
+        liquidGlass: Bool? = nil,
+        showDots: Bool,
+        transparentIcons: Bool,
+        darkenBackground: Bool,
+        blurBackground: Bool,
+        musicFileName: String?,
+        base64Image: String?,
+        hue: Double?,
+        saturation: Double?,
+        brightness: Double?,
+        musicBase64: String?,
+        musicExtension: String?,
+        consoleIcons: [String: String]?,
+        isDark: Bool?,
+        systemIcons: [String: String]? = nil,
+        base64Video: String? = nil
+    ) {
+        self.bubbleColorHex = bubbleColorHex
+        self.opacity = opacity
+        self.blurBubbles = blurBubbles
+        self.liquidGlass = liquidGlass
+        self.showDots = showDots
+        self.transparentIcons = transparentIcons
+        self.darkenBackground = darkenBackground
+        self.blurBackground = blurBackground
+        self.musicFileName = musicFileName
+        self.base64Image = base64Image
+        self.hue = hue
+        self.saturation = saturation
+        self.brightness = brightness
+        self.musicBase64 = musicBase64
+        self.musicExtension = musicExtension
+        self.consoleIcons = consoleIcons
+        self.isDark = isDark
+        self.systemIcons = systemIcons
+        self.base64Video = base64Video
+    }
+
+    init(from decoder: Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        bubbleColorHex = try container.decode(String.self, forKey: .bubbleColorHex)
+        opacity = try container.decode(Double.self, forKey: .opacity)
+        blurBubbles = try container.decode(Bool.self, forKey: .blurBubbles)
+        let decodedLiquidGlass = try container.decodeIfPresent(Bool.self, forKey: .liquidGlass)
+        let decodedLegacyLiquidGlass = try container.decodeIfPresent(Bool.self, forKey: .legacyLiquidGlassBubbles)
+        liquidGlass = decodedLiquidGlass ?? decodedLegacyLiquidGlass
+        showDots = try container.decode(Bool.self, forKey: .showDots)
+        transparentIcons = try container.decode(Bool.self, forKey: .transparentIcons)
+        darkenBackground = try container.decode(Bool.self, forKey: .darkenBackground)
+        blurBackground = try container.decode(Bool.self, forKey: .blurBackground)
+        musicFileName = try container.decodeIfPresent(String.self, forKey: .musicFileName)
+        base64Image = try container.decodeIfPresent(String.self, forKey: .base64Image)
+        hue = try container.decodeIfPresent(Double.self, forKey: .hue)
+        saturation = try container.decodeIfPresent(Double.self, forKey: .saturation)
+        brightness = try container.decodeIfPresent(Double.self, forKey: .brightness)
+        musicBase64 = try container.decodeIfPresent(String.self, forKey: .musicBase64)
+        musicExtension = try container.decodeIfPresent(String.self, forKey: .musicExtension)
+        consoleIcons = try container.decodeIfPresent([String: String].self, forKey: .consoleIcons)
+        isDark = try container.decodeIfPresent(Bool.self, forKey: .isDark)
+        systemIcons = try container.decodeIfPresent([String: String].self, forKey: .systemIcons)
+        base64Video = try container.decodeIfPresent(String.self, forKey: .base64Video)
+    }
+
+    func encode(to encoder: Encoder) throws {
+        var container = encoder.container(keyedBy: CodingKeys.self)
+        try container.encode(bubbleColorHex, forKey: .bubbleColorHex)
+        try container.encode(opacity, forKey: .opacity)
+        try container.encode(blurBubbles, forKey: .blurBubbles)
+        try container.encodeIfPresent(liquidGlass, forKey: .liquidGlass)
+        try container.encode(showDots, forKey: .showDots)
+        try container.encode(transparentIcons, forKey: .transparentIcons)
+        try container.encode(darkenBackground, forKey: .darkenBackground)
+        try container.encode(blurBackground, forKey: .blurBackground)
+        try container.encodeIfPresent(musicFileName, forKey: .musicFileName)
+        try container.encodeIfPresent(base64Image, forKey: .base64Image)
+        try container.encodeIfPresent(hue, forKey: .hue)
+        try container.encodeIfPresent(saturation, forKey: .saturation)
+        try container.encodeIfPresent(brightness, forKey: .brightness)
+        try container.encodeIfPresent(musicBase64, forKey: .musicBase64)
+        try container.encodeIfPresent(musicExtension, forKey: .musicExtension)
+        try container.encodeIfPresent(consoleIcons, forKey: .consoleIcons)
+        try container.encodeIfPresent(isDark, forKey: .isDark)
+        try container.encodeIfPresent(systemIcons, forKey: .systemIcons)
+        try container.encodeIfPresent(base64Video, forKey: .base64Video)
+    }
 }
 
 class SettingsManager: ObservableObject {
@@ -401,6 +515,7 @@ class SettingsManager: ObservableObject {
         
         customBubbleOpacity = d.object(forKey: "settings.customBubbleOpacity") as? Double ?? 0.5
         customBubbleBlurBubbles = d.object(forKey: "settings.customBubbleBlurBubbles") as? Bool ?? true
+        customBubbleUseLiquidGlass = d.object(forKey: "settings.customBubbleUseLiquidGlass") as? Bool ?? false
         let loadedHue = d.object(forKey: "settings.customBubbleHue") as? Double
         let loadedSat = d.object(forKey: "settings.customBubbleSaturation") as? Double
         
@@ -783,6 +898,10 @@ class SettingsManager: ObservableObject {
     @Published var customBubbleBlurBubbles: Bool {
         didSet { /* UserDefaults.standard.set(customBubbleBlurBubbles, forKey: "settings.customBubbleBlurBubbles") */ }
     }
+
+    @Published var customBubbleUseLiquidGlass: Bool {
+        didSet { /* Persisted through current_theme.json on explicit theme commit */ }
+    }
     
     // Custom Bubble Color Persistence (Now via Hue/Sat for reliability)
     
@@ -883,7 +1002,7 @@ class SettingsManager: ObservableObject {
     }
 
     // Explicit Commit for Restart Logic
-    func commitCustomTheme(hue: Double, saturation: Double, opacity: Double, showDots: Bool, blurBubbles: Bool, darkenBG: Bool, blurBG: Bool, brightness: Double, transparentIcons: Bool, isDark: Bool) {
+    func commitCustomTheme(hue: Double, saturation: Double, opacity: Double, showDots: Bool, blurBubbles: Bool, liquidGlassBubbles: Bool, darkenBG: Bool, blurBG: Bool, brightness: Double, transparentIcons: Bool, isDark: Bool) {
         print(" SettingsManager: Committing Custom Theme to File...")
         
         // 1. Update In-Memory State (for immediate UI reflection on current run)
@@ -892,6 +1011,7 @@ class SettingsManager: ObservableObject {
         self.customBubbleOpacity = opacity
         self.customShowDots = showDots
         self.customBubbleBlurBubbles = blurBubbles
+        self.customBubbleUseLiquidGlass = liquidGlassBubbles
         self.customDarkenBackground = darkenBG
         self.customBlurBackground = blurBG
         self.customBubbleBrightness = brightness
@@ -902,6 +1022,7 @@ class SettingsManager: ObservableObject {
             bubbleColorHex: hexString(from: Color(hue: hue, saturation: saturation, brightness: brightness)),
             opacity: opacity,
             blurBubbles: blurBubbles,
+            liquidGlass: liquidGlassBubbles,
             showDots: showDots,
             transparentIcons: transparentIcons,
             darkenBackground: darkenBG,
@@ -999,6 +1120,7 @@ class SettingsManager: ObservableObject {
             bubbleColorHex: "#AF52DE", // Purple
             opacity: 0.5,
             blurBubbles: true,
+            liquidGlass: false,
             showDots: true,
             transparentIcons: false,
             darkenBackground: false,
@@ -1046,6 +1168,7 @@ class SettingsManager: ObservableObject {
             self.customBubbleOpacity = theme.opacity
             self.customShowDots = theme.showDots
             self.customBubbleBlurBubbles = theme.blurBubbles
+            self.customBubbleUseLiquidGlass = theme.liquidGlass ?? false
             self.customDarkenBackground = theme.darkenBackground
             self.customBlurBackground = theme.blurBackground
             self.customThemeMusic = theme.musicFileName
@@ -1122,6 +1245,7 @@ class SettingsManager: ObservableObject {
             bubbleColorHex: customBubbleColorHex,
             opacity: customBubbleOpacity,
             blurBubbles: customBubbleBlurBubbles,
+            liquidGlass: customBubbleUseLiquidGlass,
             showDots: customShowDots,
             transparentIcons: useTransparentIcons,
             darkenBackground: customDarkenBackground,
@@ -1310,6 +1434,7 @@ class SettingsManager: ObservableObject {
                 bubbleColorHex: theme.bubbleColorHex,
                 opacity: theme.opacity,
                 blurBubbles: theme.blurBubbles,
+                liquidGlass: theme.liquidGlass ?? false,
                 showDots: theme.showDots,
                 transparentIcons: theme.transparentIcons,
                 darkenBackground: theme.darkenBackground,
@@ -1567,6 +1692,3 @@ class SettingsManager: ObservableObject {
 }
 
 // Helper Extensions for Color <-> Hex
-
-
-

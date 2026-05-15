@@ -526,7 +526,9 @@ public struct DSVirtualController: View {
         GeometryReader { geo in
             ZStack {
                 // Force Full Screen always
-                Color.clear.frame(width: geo.size.width, height: geo.size.height)
+                Color.clear
+                    .frame(width: geo.size.width, height: geo.size.height)
+                    .allowsHitTesting(false)
 
                 // Fondo semi-transparente
                 if !isTransparent && mode == .visible {

@@ -40,6 +40,10 @@ private var dsBottomRendererRef: DSRenderer? = nil
 
 private var nds_TouchScreen: UnsafeMutableRawPointer? = nil
 private var nds_ReleaseScreen: UnsafeMutableRawPointer? = nil
+private var dsLastMouseX: Int16 = 0
+private var dsLastMouseY: Int16 = 0
+private var dsSeenInputPollKeys: Set<String> = []
+private var dsLastInputLogAt: TimeInterval = 0
 
 
 private func callCppVoid(_ funcPtr: UnsafeMutableRawPointer?) {
@@ -92,17 +96,124 @@ func ds_input_poll() {
     let touchX = DSInput.shared.touchX
     let touchY = DSInput.shared.touchY
     
-    if userIsTouching {
-        callCppUInt16(nds_TouchScreen, UInt16(touchX), UInt16(touchY))
+    // Check if Direct Touch symbols are available (MelonDS Only)
+    if nds_TouchScreen != nil && nds_ReleaseScreen != nil {
+        if userIsTouching {
+            callCppUInt16(nds_TouchScreen, UInt16(touchX), UInt16(touchY))
+        } else {
+            callCppVoid(nds_ReleaseScreen)
+        }
     } else {
-        callCppVoid(nds_ReleaseScreen)
+        // Desmume uses Libretro Standard Input for Touch (Device = POINTER)
+        // Handled via ds_input_state callback implicitly.
+        // No explicit "Release" call needed, just 0 state.
     }
 }
 
 @_cdecl("ds_input_state")
 func ds_input_state(port: UInt32, device: UInt32, index: UInt32, id: UInt32) -> Int16 {
-    // Port 0 es Player 1
-    if port == 0 {
+    if DSInput.debugTouchLogsEnabled {
+        let key = "p\(port)-d\(device)-i\(index)-id\(id)"
+        if !dsSeenInputPollKeys.contains(key) {
+            dsSeenInputPollKeys.insert(key)
+            print("🧩 [DSCoreInput] First poll -> \(key)")
+        }
+    }
+
+    // DeSmuME touchscreen path (some builds query port 0, others port 1).
+    if (port == 0 || port == 1) && index == 0 && device == 6 { // RETRO_DEVICE_POINTER
+        let touchX = max(0, min(255, Int(DSInput.shared.touchX)))
+        let touchY = max(0, min(191, Int(DSInput.shared.touchY)))
+        let pointerX = touchX
+        let pointerY = max(0, min(383, touchY + 192))
+
+        if DSInput.debugTouchLogsEnabled && id == 2 {
+            let now = Date.timeIntervalSinceReferenceDate
+            if DSInput.shared.isTouched || now - dsLastInputLogAt > 0.25 {
+                print("🧩 [DSCoreInput] POINTER port=\(port) touched=\(DSInput.shared.isTouched) touch=(\(touchX),\(touchY)) ptr=(\(pointerX),\(pointerY))")
+                dsLastInputLogAt = now
+            }
+        }
+
+        // Libretro pointer uses normalized range [-0x7fff, 0x7fff]
+        if id == 0 { // X
+            let nx = (Double(pointerX) / 255.0) * 2.0 - 1.0
+            return Int16(max(-32767, min(32767, Int(nx * 32767.0))))
+        }
+        if id == 1 { // Y
+            let ny = (Double(pointerY) / 383.0) * 2.0 - 1.0
+            return Int16(max(-32767, min(32767, Int(ny * 32767.0))))
+        }
+        if id == 2 || id == 3 { // PRESSED (+ alias used by some cores)
+            return DSInput.shared.isTouched ? 1 : 0
+        }
+        return 0
+    }
+
+    // Some DeSmuME builds use analog path for stylus when pointer_device_l is set.
+    if (port == 0 || port == 1) && device == 5 { // RETRO_DEVICE_ANALOG
+        // Only left stick should drive stylus; keep right stick neutral.
+        if index != 0 { return 0 }
+
+        let touchX = max(0, min(255, Int(DSInput.shared.touchX)))
+        let touchY = max(0, min(191, Int(DSInput.shared.touchY)))
+
+        if DSInput.debugTouchLogsEnabled && (id == 0 || id == 1) {
+            let now = Date.timeIntervalSinceReferenceDate
+            if DSInput.shared.isTouched || now - dsLastInputLogAt > 0.25 {
+                print("🧩 [DSCoreInput] ANALOG port=\(port) index=\(index) touched=\(DSInput.shared.isTouched) x=\(touchX) y=\(touchY)")
+                dsLastInputLogAt = now
+            }
+        }
+
+        guard DSInput.shared.isTouched else { return 0 }
+
+        // Inverse of DeSmuME pressed-mode transform:
+        // touch = clamp( sqrt(2) * (size/2) * (analog/32767) + center )
+        if id == 0 { // X
+            let width: Double = 256.0
+            let centerX = (width - 1.0) / 2.0
+            let denomX = sqrt(2.0) * (width / 2.0)
+            let analogX = ((Double(touchX) - centerX) / denomX) * 32767.0
+            return Int16(max(-32767, min(32767, Int(analogX.rounded()))))
+        }
+        if id == 1 { // Y
+            let height: Double = 192.0
+            let centerY = (height - 1.0) / 2.0
+            let denomY = sqrt(2.0) * (height / 2.0)
+            let analogY = ((Double(touchY) - centerY) / denomY) * 32767.0
+            return Int16(max(-32767, min(32767, Int(analogY.rounded()))))
+        }
+
+        return 0
+    }
+
+    if (port == 0 || port == 1) && index == 0 && device == 2 { // Mouse fallback (legacy cores)
+        if DSInput.debugTouchLogsEnabled && id == 2 {
+            let now = Date.timeIntervalSinceReferenceDate
+            if DSInput.shared.isTouched || now - dsLastInputLogAt > 0.25 {
+                print("🧩 [DSCoreInput] MOUSE port=\(port) touched=\(DSInput.shared.isTouched) x=\(DSInput.shared.touchX) y=\(DSInput.shared.touchY)")
+                dsLastInputLogAt = now
+            }
+        }
+
+        // Libretro mouse expects relative deltas for X/Y.
+        if id == 0 {
+            let delta = Int(DSInput.shared.touchX) - Int(dsLastMouseX)
+            dsLastMouseX = DSInput.shared.touchX
+            return Int16(max(-32767, min(32767, delta)))
+        }
+        if id == 1 {
+            let delta = Int(DSInput.shared.touchY) - Int(dsLastMouseY)
+            dsLastMouseY = DSInput.shared.touchY
+            return Int16(max(-32767, min(32767, delta)))
+        }
+        if id == 2 || id == 3 { return DSInput.shared.isTouched ? 1 : 0 } // LEFT button
+        return 0
+    }
+
+    // Some DeSmuME builds poll joypad on port 1 instead of port 0.
+    if port == 0 || port == 1 {
         if device == 1 || device == 0 { // Joypad or Generic
             
       
@@ -113,13 +224,20 @@ func ds_input_state(port: UInt32, device: UInt32, index: UInt32, id: UInt32) -> 
             }
 
             if id < 16 {
+                // DeSmuME supports stylus tap via Joypad R2 in some input modes.
+                if id == 13 { // RETRO_DEVICE_ID_JOYPAD_R2
+                    if DSInput.debugTouchLogsEnabled {
+                        let now = Date.timeIntervalSinceReferenceDate
+                        if DSInput.shared.isTouched || now - dsLastInputLogAt > 0.25 {
+                            print("🧩 [DSCoreInput] JOYPAD_R2 touchTap=\(DSInput.shared.isTouched)")
+                            dsLastInputLogAt = now
+                        }
+                    }
+                    return DSInput.shared.isTouched ? 1 : 0
+                }
                 let mask = UInt16(1 << id)
                 return (DSInput.shared.buttonMask & mask) != 0 ? 1 : 0
             }
-        } else if device == 2 { // Pointer (Touch)
-            if id == 0 { return DSInput.shared.touchX }
-            if id == 1 { return DSInput.shared.touchY }
-            if id == 2 { return DSInput.shared.isTouched ? 1 : 0 }
         }
     }
     return 0
@@ -127,6 +245,7 @@ func ds_input_state(port: UInt32, device: UInt32, index: UInt32, id: UInt32) -> 
 
 @_cdecl("ds_environment")
 func ds_environment(cmd: UInt32, data: UnsafeMutableRawPointer?) -> Bool {
+    print(" [DSCore] Environment Call CMD: \(cmd)")
     switch cmd {
     case 3: // RETRO_ENVIRONMENT_GET_CAN_DUPE
         if let data = data {
@@ -155,7 +274,8 @@ func ds_environment(cmd: UInt32, data: UnsafeMutableRawPointer?) -> Bool {
     case 31: // RETRO_ENVIRONMENT_GET_SAVE_DIRECTORY
         if let data = data {
             if let docDir = FileManager.default.urls(for: .documentDirectory, in: .userDomainMask).first {
-                let saveDir = docDir.appendingPathComponent("saves/ds")
+                let folderName = DSCore.isDesmumeCoreActive ? "saves/ds_desmume" : "saves/ds"
+                let saveDir = docDir.appendingPathComponent(folderName)
                 try? FileManager.default.createDirectory(at: saveDir, withIntermediateDirectories: true)
                 
                 let pathStr = saveDir.path
@@ -172,13 +292,13 @@ func ds_environment(cmd: UInt32, data: UnsafeMutableRawPointer?) -> Bool {
             let format = data.bindMemory(to: UInt32.self, capacity: 1).pointee
             
             if format == 1 { // RETRO_PIXEL_FORMAT_XRGB8888
-                print("[DSCore] Core requested XRGB8888. Allowed. Using .bgra8Unorm.")
+                print("[DSCore] Core requested XRGB8888 (32-bit). Allowed. Using .bgra8Unorm.")
                 dsRendererInstance.currentPixelFormat = .bgra8Unorm
                 dsTopRendererRef?.currentPixelFormat = .bgra8Unorm
                 dsBottomRendererRef?.currentPixelFormat = .bgra8Unorm
                 return true
             } else if format == 2 { // RETRO_PIXEL_FORMAT_RGB565
-                print(" [DSCore] Core requested RGB565. Allowed. Using .b5g6r5Unorm.")
+                print(" [DSCore] Core requested RGB565 (16-bit). Allowed. Using .b5g6r5Unorm.")
                 dsRendererInstance.currentPixelFormat = .b5g6r5Unorm
                 dsTopRendererRef?.currentPixelFormat = .b5g6r5Unorm
                 dsBottomRendererRef?.currentPixelFormat = .b5g6r5Unorm
@@ -189,18 +309,106 @@ func ds_environment(cmd: UInt32, data: UnsafeMutableRawPointer?) -> Bool {
             }
         }
         return false
+
+    case 11: // RETRO_ENVIRONMENT_SET_INPUT_DESCRIPTORS
+        // Accept descriptors so core can expose stylus-related actions.
+        return true
+
+    case 17: // RETRO_ENVIRONMENT_GET_VARIABLE_UPDATE
+        if let data = data {
+            data.bindMemory(to: Bool.self, capacity: 1).pointee = false
+            return true
+        }
+        return false
+
+    case 35: // RETRO_ENVIRONMENT_SET_CONTROLLER_INFO
+        // Accept controller info declarations from core.
+        return true
         
-    case 16: // RETRO_ENVIRONMENT_GET_VARIABLE
+    case 15: // RETRO_ENVIRONMENT_GET_VARIABLE
         if let data = data {
             let variable = data.bindMemory(to: retro_variable.self, capacity: 1).pointee
             if let key = variable.key {
                 let keyString = String(cString: key)
-                // print("🔍 [DSCore] Core requested variable: \(keyString)")
+                print("🔍 [DSCore] Core requested variable: \(keyString)")
                 
+                // --- DESMUME OPTIONS ---
+                if keyString == "desmume_internal_resolution" {
+                     let res = DSCore.internalResolution
+                     print(" [DSCore] Setting Desmume Resolution -> \(res)x")
+                     // Desmume uses "256x192" etc? No, typically scale factor or specific resolution string.
+                     // Checking libretro docs: desmume_internal_resolution usually "256x192" (1), "512x384" (2), etc.
+                     // Mapping simple Int scaler to Desmume format:
+                     let width = 256 * res
+                     let height = 192 * res
+                     let value = strdup("\(width)x\(height)")
+                     data.bindMemory(to: retro_variable.self, capacity: 1).pointee.value = UnsafePointer(value)
+                     return true
+                }
+                
+                if keyString == "desmume_num_cores" {
+                     let value = strdup("2") // Multifilar for better perf
+                     data.bindMemory(to: retro_variable.self, capacity: 1).pointee.value = UnsafePointer(value)
+                     return true
+                }
+                
+                if keyString == "desmume_jit" {
+                     print("⚙️ [DSCore] Disabling Desmume JIT for Stability")
+                     let value = strdup("disabled") 
+                     data.bindMemory(to: retro_variable.self, capacity: 1).pointee.value = UnsafePointer(value)
+                     return true
+                }
+
+                 if keyString == "desmume_pointer_mouse" {
+                     // Keep pointer stack enabled for compatibility with core input paths.
+                     let value = strdup("enabled")
+                     data.bindMemory(to: retro_variable.self, capacity: 1).pointee.value = UnsafePointer(value)
+                     return true
+                 }
+
+                 if keyString == "desmume_pointer_type" {
+                     // Force absolute touchscreen coordinates instead of relative mouse mode.
+                     let value = strdup("touch")
+                     data.bindMemory(to: retro_variable.self, capacity: 1).pointee.value = UnsafePointer(value)
+                     return true
+                 }
+
+                 if keyString == "desmume_pointer_device_l" {
+                     // Stable touch path for this build: left analog in pressed mode.
+                     let value = strdup("pressed")
+                     data.bindMemory(to: retro_variable.self, capacity: 1).pointee.value = UnsafePointer(value)
+                     return true
+                 }
+
+                 if keyString == "desmume_pointer_device_r" {
+                     // Disable right analog pointer path to avoid conflicts.
+                     let value = strdup("none")
+                     data.bindMemory(to: retro_variable.self, capacity: 1).pointee.value = UnsafePointer(value)
+                     return true
+                 }
+
+                 if keyString == "desmume_pointer_device_deadzone" {
+                     // 0 avoids deadzone rejecting valid touches near screen center.
+                     let value = strdup("0")
+                     data.bindMemory(to: retro_variable.self, capacity: 1).pointee.value = UnsafePointer(value)
+                     return true
+                 }
+
+                 if keyString == "desmume_pointer_device_acceleration_mod" {
+                     let value = strdup("0")
+                     data.bindMemory(to: retro_variable.self, capacity: 1).pointee.value = UnsafePointer(value)
+                     return true
+                 }
+
+                 if keyString == "desmume_input_rotation" {
+                     let value = strdup("0")
+                     data.bindMemory(to: retro_variable.self, capacity: 1).pointee.value = UnsafePointer(value)
+                     return true
+                 }
+
+                // --- MELONDS OPTIONS (Legacy Fallback) ---
                 if keyString == "melonds_jit_enable" {
                     // Critical Fix for Pokémon White 2 / Black 2 (IRE*, IRB*)
-                    // These games require JIT enabled (or stricter timing) to prevent black screen on cutscenes.
-                    // For other games, we keep JIT disabled by default for stability on this port.
                     let shouldEnableJIT = DSCore.activeGameID.hasPrefix("IRE") || DSCore.activeGameID.hasPrefix("IRB")
                     
                     if shouldEnableJIT {
@@ -215,16 +423,12 @@ func ds_environment(cmd: UInt32, data: UnsafeMutableRawPointer?) -> Bool {
                     return true
                 }
                 
-                // Microphone Configuration (Legacy MelonDS Key)
-     
                 if keyString == "melonds_mic_input" || keyString == "melonds_microphone_input" {
-  
                      let value = strdup("blow")
                      data.bindMemory(to: retro_variable.self, capacity: 1).pointee.value = UnsafePointer(value)
                      return true
                 }
                 
-                // Increase resolution for smoother 3D (Dynamic)
                 if keyString == "melonds_internal_resolution" {
                     let res = DSCore.internalResolution
                     print(" [DSCore] Setting Internal Resolution -> \(res)x")
@@ -232,8 +436,8 @@ func ds_environment(cmd: UInt32, data: UnsafeMutableRawPointer?) -> Bool {
                     data.bindMemory(to: retro_variable.self, capacity: 1).pointee.value = UnsafePointer(value)
                     return true
                 }
+
                 
-                // FORCE DS MODE (Fix for Pokemon White 2 and DSi-Enhanced games)
                 if keyString == "melonds_console_mode" {
                     print(" [DSCore] Forcing Console Mode -> DS")
                     let value = strdup("DS")
@@ -241,14 +445,42 @@ func ds_environment(cmd: UInt32, data: UnsafeMutableRawPointer?) -> Bool {
                     return true
                 }
                 
-                // Force Direct Boot (Bypass BIOS if missing)
                 if keyString == "melonds_boot_directly" {
                      print(" [DSCore] Forcing Boot Directly -> enabled")
                      let value = strdup("enabled") 
                      data.bindMemory(to: retro_variable.self, capacity: 1).pointee.value = UnsafePointer(value)
                      return true
                 }
+                if keyString == "desmume_firmware_language" {
+                     let value = strdup("English")
+                     data.bindMemory(to: retro_variable.self, capacity: 1).pointee.value = UnsafePointer(value)
+                     return true
+                }
             }
+        }
+        return false
+
+    case 16: // RETRO_ENVIRONMENT_SET_VARIABLES
+        // Core is providing option definitions; frontend can acknowledge without parsing.
+        return true
+        
+    case 27: // RETRO_ENVIRONMENT_GET_LOG_INTERFACE
+        if let data = data {
+             // Define the callback closure
+             let cb: @convention(c) (UInt32, UnsafePointer<CChar>?, UnsafeMutableRawPointer?) -> Void = { level, fmt, args in
+                 guard let fmt = fmt else { return }
+                 // Swift doesn't easily support vprintf from CVaListPointer directly without bridging.
+                 // For now, we will print a generic message or try partial string.
+                 let msg = String(cString: fmt)
+                 print(" [DesmumeLog] \(msg)") 
+             }
+             
+             var logCb = retro_log_callback()
+             logCb.log = cb
+             
+             data.bindMemory(to: retro_log_callback.self, capacity: 1).pointee = logCb
+             print(" [DSCore] Log Interface Configured.")
+             return true
         }
         return false
         
@@ -259,25 +491,35 @@ func ds_environment(cmd: UInt32, data: UnsafeMutableRawPointer?) -> Bool {
          return true
 
     default:
-  
+        // print(" [DSCore] Unhandled Environment CMD: \(cmd)")
         return false
     }
 }
 
+// Struct for Log Callback
+struct retro_log_callback {
+    var log: (@convention(c) (UInt32, UnsafePointer<CChar>?, UnsafeMutableRawPointer?) -> Void)?
+}
+
 
 public class DSCore: ObservableObject {
+    public static let shared = DSCore()
+
     @Published public var isRunning = false
     private var coreHandle: UnsafeMutableRawPointer?
     private var displayLink: CADisplayLink?
     
     // Perform memory management for ROM data to prevent use-after-free
     private var romData: Data?
+    private var isUsingDesmumeCore: Bool = false
+    private var hasShutdown = false
 
     private var hasPrintedLoop = false
     
     // Global Settings (Static for C-Bridge Access)
     public static var activeGameID: String = "" // Stores current Game Code (e.g. IREO)
     public static var internalResolution: Int = 4 // Default to 4x (Max)
+    public static var isDesmumeCoreActive: Bool = false
     
     // Renderers para cada pantalla en modo horizontal
     private let dsTopRenderer: DSRenderer = DSRenderer()
@@ -317,6 +559,7 @@ public class DSCore: ObservableObject {
     private var ptr_retro_set_controller_port_device: UnsafeMutableRawPointer?
     
     private var ptr_retro_load_game: UnsafeMutableRawPointer?
+    private var ptr_retro_unload_game: UnsafeMutableRawPointer?
     private var ptr_retro_get_system_av_info: UnsafeMutableRawPointer?
     private var ptr_retro_run: UnsafeMutableRawPointer?
     
@@ -383,6 +626,11 @@ public class DSCore: ObservableObject {
     private var retro_load_game: (@convention(c) (UnsafeRawPointer) -> Bool)? {
         guard let ptr = ptr_retro_load_game else { return nil }
         return unsafeBitCast(ptr, to: (@convention(c) (UnsafeRawPointer) -> Bool).self)
+    }
+    
+    private var retro_unload_game: (@convention(c) () -> Void)? {
+        guard let ptr = ptr_retro_unload_game else { return nil }
+        return unsafeBitCast(ptr, to: (@convention(c) () -> Void).self)
     }
     
     private var retro_get_system_av_info: (@convention(c) (UnsafeMutableRawPointer) -> Void)? {
@@ -468,58 +716,88 @@ public class DSCore: ObservableObject {
     }
     
     deinit {
+        shutdown()
+    }
+
+    public func shutdown() {
+        if hasShutdown {
+            return
+        }
+        hasShutdown = true
+
         stopLoop()
+
+        if isGameLoaded {
+            retro_unload_game?()
+            isGameLoaded = false
+        }
+
         retro_deinit?()
+
         if let handle = coreHandle {
             dlclose(handle)
+            coreHandle = nil
         }
+
+        romData = nil
+        nds_TouchScreen = nil
+        nds_ReleaseScreen = nil
+        isUsingDesmumeCore = false
+        DSCore.isDesmumeCoreActive = false
     }
     
     private func loadCore() {
+        hasShutdown = false
+
         var corePath: String?
         
-        // 1. Check Frameworks Directory (Production)
+        // 1. Check Frameworks Directory for Desmume Framework (Priority)
         if let frameworksURL = Bundle.main.privateFrameworksURL {
-            let frameworkPath = frameworksURL.appendingPathComponent("melonds.framework/melonds").path
-            print(" [DSCore] Checking Frameworks Path: \(frameworkPath)")
-            if FileManager.default.fileExists(atPath: frameworkPath) {
-                print(" [DSCore] Found in Frameworks!")
-                corePath = frameworkPath
+            let desmumeFrameworkPath = frameworksURL.appendingPathComponent("desmume.framework/desmume").path
+            print(" [DSCore] Checking Frameworks Desmume Framework: \(desmumeFrameworkPath)")
+            if FileManager.default.fileExists(atPath: desmumeFrameworkPath) {
+                print(" [DSCore] Found Desmume Framework in Frameworks!")
+                corePath = desmumeFrameworkPath
             }
         }
         
-        // 2. Updated Fallback: Check Bundle Root directly for "melonds.framework"
+        // 2. Check Bundle Root for Desmume Framework
         if corePath == nil {
-             let rootFrameworkPath = Bundle.main.bundleURL.appendingPathComponent("melonds.framework/melonds").path
-             print(" [DSCore] Checking Root Path: \(rootFrameworkPath)")
-             if FileManager.default.fileExists(atPath: rootFrameworkPath) {
-                 print(" [DSCore] Found in Root Bundle!")
-                 corePath = rootFrameworkPath
+             let rootFrameworkExec = Bundle.main.bundleURL.appendingPathComponent("desmume.framework/desmume").path
+             if FileManager.default.fileExists(atPath: rootFrameworkExec) {
+                 print(" [DSCore] Found Desmume Framework in Root Bundle!")
+                 corePath = rootFrameworkExec
              }
         }
+
+        // 3. Fallback: MelonDS Framework Logic
+        if corePath == nil {
+            if let frameworksURL = Bundle.main.privateFrameworksURL {
+                let frameworkPath = frameworksURL.appendingPathComponent("melonds.framework/melonds").path
+                if FileManager.default.fileExists(atPath: frameworkPath) {
+                    print(" [DSCore] Found MelonDS in Frameworks!")
+                    corePath = frameworkPath
+                }
+            }
+        }
         
-        // 3. Search for raw dylib in Frameworks (Most likely for 'Embed & Sign')
+        // 4. Fallback: MelonDS Dylib
         if corePath == nil, let frameworksURL = Bundle.main.privateFrameworksURL {
              let dylibPath = frameworksURL.appendingPathComponent("melonds_libretro_ios.dylib").path
-             print(" [DSCore] Checking Frameworks dylib: \(dylibPath)")
              if FileManager.default.fileExists(atPath: dylibPath) {
-                 print(" [DSCore] Found dylib in Frameworks!")
+                 print(" [DSCore] Found MelonDS dylib in Frameworks!")
                  corePath = dylibPath
              }
         }
 
-        // 4. Last Resort: Loose dylib in Bundle Resources
+        // 5. Last Resort: Loose dylib in Bundle Resources
         if corePath == nil {
-             print(" [DSCore] Checking Bundle Resource 'melonds_libretro_ios'")
-             if let path = Bundle.main.path(forResource: "melonds_libretro_ios", ofType: "dylib") {
-                 print(" [DSCore] Found as Resource dylib!")
+             if let path = Bundle.main.path(forResource: "desmume_libretro_ios", ofType: "dylib") {
+                 print(" [DSCore] Found Desmume as Resource!")
                  corePath = path
-             } else {
-                 // Try cleaning up name if user renamed it
-                  if let path = Bundle.main.path(forResource: "melonds", ofType: "dylib") {
-                     print("[DSCore] Found as 'melonds.dylib'!")
-                     corePath = path
-                 }
+             } else if let path = Bundle.main.path(forResource: "melonds_libretro_ios", ofType: "dylib") {
+                 print(" [DSCore] Found MelonDS as Resource!")
+                 corePath = path
              }
         }
 
@@ -527,6 +805,9 @@ public class DSCore: ObservableObject {
             print(" [DSCore] FATAL: Could not find melonds binary anywhere.")
             return
         }
+
+        isUsingDesmumeCore = validPath.lowercased().contains("desmume")
+        DSCore.isDesmumeCoreActive = isUsingDesmumeCore
         
         print(" [DSCore] Loading Core from: \(validPath)")
         
@@ -548,6 +829,7 @@ public class DSCore: ObservableObject {
         ptr_retro_set_controller_port_device = dlsym(coreHandle, "retro_set_controller_port_device")
         
         ptr_retro_load_game = dlsym(coreHandle, "retro_load_game")
+        ptr_retro_unload_game = dlsym(coreHandle, "retro_unload_game")
         ptr_retro_run = dlsym(coreHandle, "retro_run")
         ptr_retro_get_system_av_info = dlsym(coreHandle, "retro_get_system_av_info")
         
@@ -558,8 +840,15 @@ public class DSCore: ObservableObject {
         ptr_retro_get_memory_data = dlsym(coreHandle, "retro_get_memory_data")
         ptr_retro_get_memory_size = dlsym(coreHandle, "retro_get_memory_size")
         
-        // Cargar funciones internas de NDS para acceso directo al toque
+        // Cargar funciones internas de NDS para acceso directo al toque (Specific to MelonDS)
+        // Check if symbols exist before assigning to avoid issues with other cores (Desmume)
         ptr_nds_TouchScreen = dlsym(coreHandle, "_ZN3NDS11TouchScreenEtt")
+        if ptr_nds_TouchScreen == nil {
+            print(" [DSCore] Symbol '_ZN3NDS11TouchScreenEtt' not found (Expected for Desmume)")
+        } else {
+            print(" [DSCore] Found MelonDS Touch Symbol")
+        }
+
         ptr_nds_ReleaseScreen = dlsym(coreHandle, "_ZN3NDS13ReleaseScreenEv")
         
         // Actualizar referencias globales para los callbacks
@@ -575,10 +864,12 @@ public class DSCore: ObservableObject {
         retro_set_input_state?(ds_input_state)
         
         retro_init?()
-        print(" [DSCore] Core melonDS inicializado correctamente.")
+        print(" [DSCore] Core inicializado correctamente.")
     }
     
 
+    
+    private var isGameLoaded = false
     
     public func loadGame(url: URL) -> Bool {
         // Ensure Core is initialized
@@ -587,6 +878,13 @@ public class DSCore: ObservableObject {
         }
         
         stopLoop()
+        
+        // Unload previous game if loaded
+        if isGameLoaded {
+            print(" [DSCore] Unloading previous game...")
+            retro_unload_game?()
+            isGameLoaded = false
+        }
         
         // Save current ROM URL for save data handling
         currentROMURL = url
@@ -624,10 +922,14 @@ public class DSCore: ObservableObject {
                     
                     var info = retro_game_info()
                     info.path = pathPtr.baseAddress
-                    // Pass the MAPPED pointer. The core will likely copy this, 
-                    // consuming 512MB of Core RAM, but simpler Swift RAM usage remains low.
-                    info.data = baseAddress
-                    info.size = data.count
+                    // Desmume is more stable with fullpath loading (no direct mapped data pointer).
+                    if self.isUsingDesmumeCore {
+                        info.data = nil
+                        info.size = 0
+                    } else {
+                        info.data = baseAddress
+                        info.size = data.count
+                    }
                     info.meta = nil
                     
                     print(" [DSCore] Loading Game via Mapped Data: \(url.lastPathComponent)")
@@ -642,18 +944,24 @@ public class DSCore: ObservableObject {
                         return false
                     }
                     
+                    self.isGameLoaded = true
                     print("[DSCore] Juego cargado exitosamente.")
                     
-                    // Load Save RAM (Memory Card) if exists
-                    loadSaveRAM()
+                    // Load Save RAM manually only for legacy MelonDS path.
+                    // Desmume handles its own save files and manual injection can corrupt relaunch flow.
+                    if !self.isUsingDesmumeCore {
+                        loadSaveRAM()
+                    }
                     
+                    print(" [DSCore] Requesting AV Info from Core...")
                     var avInfo = retro_system_av_info()
                     withUnsafeMutablePointer(to: &avInfo) { avPtr in
                         retro_get_system_av_info?(avPtr)
                     }
                     
                     let sampleRate = avInfo.timing.sample_rate
-                    print(" [DSCore] Audio Sample Rate: \(sampleRate)Hz, FPS: \(avInfo.timing.fps)")
+                    print(" [DSCore] AV Info Received: Sample Rate: \(sampleRate)Hz, FPS: \(avInfo.timing.fps)")
+                    
                     self.currentSampleRate = sampleRate // Store for resume
                     DSAudio.shared.start(rate: sampleRate)
                     
@@ -717,8 +1025,11 @@ public class DSCore: ObservableObject {
     }
     
     public func stopLoop() {
-        // Save RAM before stopping - ALWAYS try to save
-        saveSaveRAM()
+        // Save RAM manually only for legacy MelonDS path.
+        // Desmume handles save files internally via libretro save directory.
+        if !isUsingDesmumeCore {
+            saveSaveRAM()
+        }
         
         isRunning = false
         displayLink?.invalidate()
@@ -726,6 +1037,15 @@ public class DSCore: ObservableObject {
         DSAudio.shared.stop()
         stopMicrophone()
         stopMotion()
+    }
+
+    public func unloadGameSession() {
+        stopLoop()
+        if isGameLoaded {
+            retro_unload_game?()
+            isGameLoaded = false
+        }
+        romData = nil
     }
     
     // MARK: - Microphone Support I really don't know why it dosen't wokr

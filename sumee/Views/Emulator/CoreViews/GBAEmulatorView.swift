@@ -21,6 +21,7 @@ struct GBAEmulatorView: View {
     @State private var inputTimer: Timer?
     @State private var isAirPlayConnected = false
     @State private var isPausedExternally = false // Track external pause requests
+    var skipBIOS: Bool = false
 
     var body: some View {
         Group {
@@ -33,7 +34,7 @@ struct GBAEmulatorView: View {
                         logoName: (rom.console == .gameboy) ? "GB" : (rom.console == .gameboyColor ? "GBC" : "GBA")
                     )
                     .screenOverlay {
-                        if isPlayingBIOS {
+                        if isPlayingBIOS && !skipBIOS {
                             BIOSIntroView {
                                 // On Finish
                                 withAnimation(.easeOut(duration: 0.5)) {
@@ -66,11 +67,11 @@ struct GBAEmulatorView: View {
                         .zIndex(10)
                 }
                 
-                // 3. Fast Forward Button
-                if !showMenu && !gameController.isControllerConnected {
-                    fastForwardButton
-                        .zIndex(20)
-                }
+                // 3. Fast Forward Button (TEMPORARILY DISABLED)
+                // if !showMenu && !gameController.isControllerConnected {
+                //     fastForwardButton
+                //         .zIndex(20)
+                // }
             }
         }
         .onAppear {

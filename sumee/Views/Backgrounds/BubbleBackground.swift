@@ -50,6 +50,80 @@ struct BubbleBackground: View {
         return theme.bubbleTintColor ?? (theme.isDark ? (reduceTransparency ? Color(white: 0.1) : Color.black) : Color.white)
     }
 
+    @ViewBuilder
+    private func customBubbleSurface(
+        cornerRadius: CGFloat,
+        opacity: Double,
+        showDots: Bool,
+        isBlurEnabled: Bool
+    ) -> some View {
+        let shape = RoundedRectangle(cornerRadius: cornerRadius)
+
+        if #available(iOS 26.0, *), SettingsManager.shared.customBubbleUseLiquidGlass {
+            customBubbleLayers(
+                shape: shape,
+                opacity: opacity,
+                showDots: showDots,
+                includeClassicBlur: false,
+                includeBorder: false
+            )
+            .glassEffect(
+                .regular.tint(resolvedBaseColor.opacity(opacity)),
+                in: shape
+            )
+        } else {
+            customBubbleLayers(
+                shape: shape,
+                opacity: opacity,
+                showDots: showDots,
+                includeClassicBlur: isBlurEnabled,
+                includeBorder: true
+            )
+        }
+    }
+
+    @ViewBuilder
+    private func customBubbleLayers<S: Shape>(
+        shape: S,
+        opacity: Double,
+        showDots: Bool,
+        includeClassicBlur: Bool,
+        includeBorder: Bool
+    ) -> some View {
+        ZStack {
+            if includeClassicBlur {
+                shape
+                    .fill(Material.ultraThin)
+                    .environment(\.colorScheme, .dark)
+            }
+
+            shape
+                .fill(resolvedBaseColor.opacity(opacity))
+
+            if showDots {
+                Canvas { context, size in
+                    let spacing: CGFloat = 5.0
+                    let dotSize: CGFloat = 1.5
+                    let dotColor = Color.white.opacity(0.3)
+
+                    for x in stride(from: 0, to: size.width, by: spacing) {
+                        for y in stride(from: 0, to: size.height, by: spacing) {
+                            let rect = CGRect(x: x, y: y, width: dotSize, height: dotSize)
+                            context.fill(Path(ellipseIn: rect), with: .color(dotColor))
+                        }
+                    }
+                }
+                .blendMode(.overlay)
+                .clipShape(RoundedRectangle(cornerRadius: cornerRadius))
+            }
+
+            if includeBorder {
+                shape
+                    .stroke(Color.white.opacity(0.2), lineWidth: 1)
+            }
+        }
+    }
+
     var body: some View {
         // Shared logic variables
         let isCustom = theme.id == "custom_photo"
@@ -66,41 +140,12 @@ struct BubbleBackground: View {
                     let size = geo.size
                     let endRadius = max(size.width, size.height) * 0.8
                     
-                    ZStack {
-                        // 1. Blur Layer
-                        if isBlurEnabled {
-                            RoundedRectangle(cornerRadius: cornerRadius)
-                                .fill(Material.ultraThin)
-                                .environment(\.colorScheme, .dark)
-                        }
-                        
-                        // 2. Color/Tint Layer (Controlled by Opacity Slider)
-                        RoundedRectangle(cornerRadius: cornerRadius)
-                            .fill(resolvedBaseColor.opacity(opacity))
-                        
-                        // 3. Dot Grid (Conditional)
-                        if showDots {
-                            Canvas { context, size in
-                                let spacing: CGFloat = 5.0
-                                let dotSize: CGFloat = 1.5
-                                // For custom themes, dots opacity might need tuning. 
-                                let dotColor = Color.white.opacity(0.3)
-                                
-                                for x in stride(from: 0, to: size.width, by: spacing) {
-                                    for y in stride(from: 0, to: size.height, by: spacing) {
-                                        let rect = CGRect(x: x, y: y, width: dotSize, height: dotSize)
-                                        context.fill(Path(ellipseIn: rect), with: .color(dotColor))
-                                    }
-                                }
-                            }
-                            .blendMode(.overlay)
-                            .clipShape(RoundedRectangle(cornerRadius: cornerRadius))
-                        }
-                        
-                        // 4. Border (Subtle)
-                        RoundedRectangle(cornerRadius: cornerRadius)
-                            .strokeBorder(Color.white.opacity(0.2), lineWidth: 1)
-                    }
+                    customBubbleSurface(
+                        cornerRadius: cornerRadius,
+                        opacity: opacity,
+                        showDots: showDots,
+                        isBlurEnabled: isBlurEnabled
+                    )
                     .shadow(color: Color.black.opacity(0.1), radius: 6, x: 0, y: 4)
                 }
             }

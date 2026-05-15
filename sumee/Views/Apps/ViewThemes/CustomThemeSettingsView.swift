@@ -444,7 +444,7 @@ struct CustomThemeSettingsView: View {
         
         // 5. Main Menu
         let newRow = selectedRow + direction
-        guard newRow >= 0 && newRow <= 14 else { return }
+        guard newRow >= 0 && newRow <= 15 else { return }
         
         withAnimation(.spring(response: 0.3, dampingFraction: 1.0)) {
             selectedRow = newRow
@@ -479,18 +479,21 @@ struct CustomThemeSettingsView: View {
                 settings.customBubbleBlurBubbles.toggle()
             }
             if selectedRow == 5 {
-                 settings.customShowDots.toggle()
+                 toggleLiquidGlass()
             }
             if selectedRow == 6 {
-                settings.useTransparentIcons.toggle()
+                 settings.customShowDots.toggle()
             }
             if selectedRow == 7 {
-                toggleDarken()
+                settings.useTransparentIcons.toggle()
             }
             if selectedRow == 8 {
+                toggleDarken()
+            }
+            if selectedRow == 9 {
                 toggleBlur()
             }
-            if selectedRow == 10 {
+            if selectedRow == 11 {
                 toggleTextColor()
             }
         }
@@ -520,18 +523,21 @@ struct CustomThemeSettingsView: View {
                  settings.customBubbleBlurBubbles.toggle()
             }
              if selectedRow == 5 {
-                 settings.customShowDots.toggle()
+                 toggleLiquidGlass()
              }
              if selectedRow == 6 {
-                 settings.useTransparentIcons.toggle()
+                 settings.customShowDots.toggle()
              }
               if selectedRow == 7 {
-                  toggleDarken()
+                  settings.useTransparentIcons.toggle()
               }
               if selectedRow == 8 {
+                  toggleDarken()
+              }
+              if selectedRow == 9 {
                   toggleBlur()
               }
-              if selectedRow == 10 {
+              if selectedRow == 11 {
                   toggleTextColor()
               }
          }
@@ -549,40 +555,44 @@ struct CustomThemeSettingsView: View {
             }
             if selectedRow == 5 {
                 AudioManager.shared.playSelectSound()
-                settings.customShowDots.toggle()
+                toggleLiquidGlass()
             }
             if selectedRow == 6 {
                 AudioManager.shared.playSelectSound()
-                toggleIcons()
+                settings.customShowDots.toggle()
             }
             if selectedRow == 7 {
                 AudioManager.shared.playSelectSound()
-                toggleDarken()
+                toggleIcons()
             }
             if selectedRow == 8 {
                 AudioManager.shared.playSelectSound()
-                toggleBlur()
+                toggleDarken()
             }
             if selectedRow == 9 {
                 AudioManager.shared.playSelectSound()
-                withAnimation { showMusicPicker = true }
+                toggleBlur()
             }
             if selectedRow == 10 {
                 AudioManager.shared.playSelectSound()
-                toggleTextColor()
+                withAnimation { showMusicPicker = true }
             }
             if selectedRow == 11 {
                 AudioManager.shared.playSelectSound()
+                toggleTextColor()
+            }
+            if selectedRow == 12 {
+                AudioManager.shared.playSelectSound()
                 withAnimation { showConsoleList = true }
             }
-            if selectedRow == 12 { // New ID for System Icons
+            if selectedRow == 13 { // New ID for System Icons
                 AudioManager.shared.playSelectSound()
                 withAnimation { showSystemAppList = true }
             }
-            if selectedRow == 13 {
+            if selectedRow == 14 {
                 applyTheme()
             }
-            if selectedRow == 14 {
+            if selectedRow == 15 {
                 handleExportImport()
             }
         }
@@ -644,6 +654,12 @@ struct CustomThemeSettingsView: View {
         AudioManager.shared.playSelectSound()
         settingsChangeID = UUID() // Force Refresh
     }
+
+    private func toggleLiquidGlass() {
+        settings.customBubbleUseLiquidGlass.toggle()
+        AudioManager.shared.playSelectSound()
+        settingsChangeID = UUID()
+    }
     
     private func toggleIcons() {
         settings.useTransparentIcons.toggle()
@@ -693,6 +709,7 @@ struct CustomThemeSettingsView: View {
             opacity: opacity,
             showDots: settings.customShowDots,
             blurBubbles: settings.customBubbleBlurBubbles,
+            liquidGlassBubbles: settings.customBubbleUseLiquidGlass,
             darkenBG: settings.customDarkenBackground, 
             blurBG: settings.customBlurBackground,
             brightness: finalBri,
@@ -1002,16 +1019,17 @@ struct CustomThemeSettingsView: View {
             saturationOptionSlider.id(2)
             opacityOptionSlider.id(3)
             blurBubblesOptionButton.id(4)
-            dotsOptionButton.id(5)
-            iconsOptionButton.id(6)
-            darkenOptionButton.id(7)
-            blurOptionButton.id(8)
-            musicOptionButton.id(9)
-            textColorOptionButton.id(10)
-            consoleIconsOptionButton.id(11)
-            systemIconsOptionButton.id(12)
-            applyThemeButton.id(13)
-            exportImportButton.id(14)
+            liquidGlassOptionButton.id(5)
+            dotsOptionButton.id(6)
+            iconsOptionButton.id(7)
+            darkenOptionButton.id(8)
+            blurOptionButton.id(9)
+            musicOptionButton.id(10)
+            textColorOptionButton.id(11)
+            consoleIconsOptionButton.id(12)
+            systemIconsOptionButton.id(13)
+            applyThemeButton.id(14)
+            exportImportButton.id(15)
         }
         .foregroundColor(textColor)
     }
@@ -1227,6 +1245,45 @@ struct CustomThemeSettingsView: View {
         .buttonStyle(PlainButtonStyle())
     }
 
+    private var liquidGlassOptionButton: some View {
+        Button(action: {
+            selectedRow = 5
+            toggleLiquidGlass()
+        }) {
+            ZStack {
+                BubbleBackground(
+                    cornerRadius: 16,
+                    theme: ThemeRegistry.customTheme,
+                    overrideColor: previewColor,
+                    overrideShowDots: settings.customShowDots,
+                    overrideBlurBubbles: settings.customBubbleBlurBubbles
+                )
+                    .id(settingsChangeID)
+                HStack {
+                    VStack(alignment: .leading, spacing: 2) {
+                        Text("Liquid Glass")
+                            .font(.subheadline)
+                        Text("iOS 26+")
+                            .font(.caption2)
+                            .opacity(0.7)
+                    }
+                    Spacer()
+                    Image(systemName: settings.customBubbleUseLiquidGlass ? "checkmark.circle.fill" : "circle")
+                        .foregroundColor(settings.customBubbleUseLiquidGlass ? .green : .gray)
+                }
+                .padding(.horizontal)
+            }
+            .frame(width: 200, height: 50)
+            .overlay(
+                RoundedRectangle(cornerRadius: 16)
+                    .stroke(textColor, lineWidth: selectedRow == 5 ? 4 : 0)
+            )
+            .scaleEffect(selectedRow == 5 ? 1.05 : 1.0)
+            .animation(.spring(), value: selectedRow)
+        }
+        .buttonStyle(PlainButtonStyle())
+    }
+
     private var opacitySliderVisual: some View {
         ZStack(alignment: .leading) {
             RoundedRectangle(cornerRadius: 8)
@@ -1244,7 +1301,7 @@ struct CustomThemeSettingsView: View {
 
     private var dotsOptionButton: some View {
         Button(action: {
-            selectedRow = 5
+            selectedRow = 6
             toggleDots()
         }) {
             ZStack {
@@ -1268,9 +1325,9 @@ struct CustomThemeSettingsView: View {
             .frame(width: 200, height: 50)
             .overlay(
                 RoundedRectangle(cornerRadius: 16)
-                    .stroke(textColor, lineWidth: selectedRow == 5 ? 4 : 0)
+                    .stroke(textColor, lineWidth: selectedRow == 6 ? 4 : 0)
             )
-            .scaleEffect(selectedRow == 5 ? 1.05 : 1.0)
+            .scaleEffect(selectedRow == 6 ? 1.05 : 1.0)
             .animation(.spring(), value: selectedRow)
         }
         .buttonStyle(PlainButtonStyle())
@@ -1278,7 +1335,7 @@ struct CustomThemeSettingsView: View {
     
     private var iconsOptionButton: some View {
         Button(action: {
-            selectedRow = 6
+            selectedRow = 7
             toggleIcons()
         }) {
             ZStack {
@@ -1306,9 +1363,9 @@ struct CustomThemeSettingsView: View {
             .frame(width: 200, height: 50)
             .overlay(
                 RoundedRectangle(cornerRadius: 16)
-                    .stroke(textColor, lineWidth: selectedRow == 6 ? 4 : 0)
+                    .stroke(textColor, lineWidth: selectedRow == 7 ? 4 : 0)
             )
-            .scaleEffect(selectedRow == 6 ? 1.05 : 1.0)
+            .scaleEffect(selectedRow == 7 ? 1.05 : 1.0)
             .animation(.spring(), value: selectedRow)
         }
         .buttonStyle(PlainButtonStyle())
@@ -1316,7 +1373,7 @@ struct CustomThemeSettingsView: View {
     
     private var darkenOptionButton: some View {
         Button(action: {
-            selectedRow = 7
+            selectedRow = 8
             toggleDarken()
         }) {
             ZStack {
@@ -1340,9 +1397,9 @@ struct CustomThemeSettingsView: View {
             .frame(width: 200, height: 50)
             .overlay(
                 RoundedRectangle(cornerRadius: 16)
-                    .stroke(textColor, lineWidth: selectedRow == 7 ? 4 : 0)
+                    .stroke(textColor, lineWidth: selectedRow == 8 ? 4 : 0)
             )
-            .scaleEffect(selectedRow == 7 ? 1.05 : 1.0)
+            .scaleEffect(selectedRow == 8 ? 1.05 : 1.0)
             .animation(.spring(), value: selectedRow)
         }
         .buttonStyle(PlainButtonStyle())
@@ -1350,7 +1407,7 @@ struct CustomThemeSettingsView: View {
     
     private var blurOptionButton: some View {
         Button(action: {
-            selectedRow = 8
+            selectedRow = 9
             toggleBlur()
         }) {
             ZStack {
@@ -1374,9 +1431,9 @@ struct CustomThemeSettingsView: View {
             .frame(width: 200, height: 50)
             .overlay(
                 RoundedRectangle(cornerRadius: 16)
-                    .stroke(textColor, lineWidth: selectedRow == 8 ? 4 : 0)
+                    .stroke(textColor, lineWidth: selectedRow == 9 ? 4 : 0)
             )
-            .scaleEffect(selectedRow == 8 ? 1.05 : 1.0)
+            .scaleEffect(selectedRow == 9 ? 1.05 : 1.0)
             .animation(.spring(), value: selectedRow)
         }
         .buttonStyle(PlainButtonStyle())
@@ -1384,7 +1441,7 @@ struct CustomThemeSettingsView: View {
 
     private var musicOptionButton: some View {
         Button(action: {
-            selectedRow = 9
+            selectedRow = 10
             withAnimation { showMusicPicker = true }
         }) {
             ZStack {
@@ -1413,9 +1470,9 @@ struct CustomThemeSettingsView: View {
             .frame(width: 200, height: 50)
             .overlay(
                 RoundedRectangle(cornerRadius: 16)
-                    .stroke(textColor, lineWidth: selectedRow == 9 ? 4 : 0)
+                    .stroke(textColor, lineWidth: selectedRow == 10 ? 4 : 0)
             )
-            .scaleEffect(selectedRow == 9 ? 1.05 : 1.0)
+            .scaleEffect(selectedRow == 10 ? 1.05 : 1.0)
             .animation(.spring(), value: selectedRow)
         }
         .buttonStyle(PlainButtonStyle())
@@ -1423,7 +1480,7 @@ struct CustomThemeSettingsView: View {
     
     private var textColorOptionButton: some View {
         Button(action: {
-            selectedRow = 10
+            selectedRow = 11
             toggleTextColor()
         }) {
             ZStack {
@@ -1452,9 +1509,9 @@ struct CustomThemeSettingsView: View {
             .frame(width: 200, height: 50)
             .overlay(
                 RoundedRectangle(cornerRadius: 16)
-                    .stroke(textColor, lineWidth: selectedRow == 10 ? 4 : 0)
+                    .stroke(textColor, lineWidth: selectedRow == 11 ? 4 : 0)
             )
-            .scaleEffect(selectedRow == 10 ? 1.05 : 1.0)
+            .scaleEffect(selectedRow == 11 ? 1.05 : 1.0)
             .animation(.spring(), value: selectedRow)
         }
         .buttonStyle(PlainButtonStyle())
@@ -1462,7 +1519,7 @@ struct CustomThemeSettingsView: View {
 
     private var consoleIconsOptionButton: some View {
         Button(action: {
-            selectedRow = 11
+            selectedRow = 12
             withAnimation { showConsoleList = true }
         }) {
             ZStack {
@@ -1491,9 +1548,9 @@ struct CustomThemeSettingsView: View {
             .frame(width: 200, height: 50)
             .overlay(
                 RoundedRectangle(cornerRadius: 16)
-                    .stroke(textColor, lineWidth: selectedRow == 11 ? 4 : 0)
+                    .stroke(textColor, lineWidth: selectedRow == 12 ? 4 : 0)
             )
-            .scaleEffect(selectedRow == 11 ? 1.05 : 1.0)
+            .scaleEffect(selectedRow == 12 ? 1.05 : 1.0)
             .animation(.spring(), value: selectedRow)
         }
         .buttonStyle(PlainButtonStyle())
@@ -1502,7 +1559,7 @@ struct CustomThemeSettingsView: View {
     // NEW SYSTEM ICON BUTTON
     private var systemIconsOptionButton: some View {
         Button(action: {
-            selectedRow = 12
+            selectedRow = 13
             withAnimation { showSystemAppList = true }
         }) {
             ZStack {
@@ -1530,9 +1587,9 @@ struct CustomThemeSettingsView: View {
             .frame(width: 200, height: 50)
             .overlay(
                 RoundedRectangle(cornerRadius: 16)
-                    .stroke(textColor, lineWidth: selectedRow == 12 ? 4 : 0)
+                    .stroke(textColor, lineWidth: selectedRow == 13 ? 4 : 0)
             )
-            .scaleEffect(selectedRow == 12 ? 1.05 : 1.0)
+            .scaleEffect(selectedRow == 13 ? 1.05 : 1.0)
             .animation(.spring(), value: selectedRow)
         }
         .buttonStyle(PlainButtonStyle())
@@ -1540,7 +1597,7 @@ struct CustomThemeSettingsView: View {
     
     private var applyThemeButton: some View {
         Button(action: {
-            selectedRow = 13
+            selectedRow = 14
             applyTheme()
         }) {
             ZStack {
@@ -1565,9 +1622,9 @@ struct CustomThemeSettingsView: View {
             .frame(width: 200, height: 60)
             .overlay(
                 RoundedRectangle(cornerRadius: 16)
-                    .stroke(textColor, lineWidth: selectedRow == 13 ? 4 : 0)
+                    .stroke(textColor, lineWidth: selectedRow == 14 ? 4 : 0)
             )
-            .scaleEffect(selectedRow == 13 ? 1.05 : 1.0)
+            .scaleEffect(selectedRow == 14 ? 1.05 : 1.0)
             .animation(.spring(), value: selectedRow)
         }
         .buttonStyle(PlainButtonStyle())
@@ -1575,7 +1632,7 @@ struct CustomThemeSettingsView: View {
 
     private var exportImportButton: some View {
         Button(action: {
-            selectedRow = 14
+            selectedRow = 15
             handleExportImport()
         }) {
             ZStack {
@@ -1598,9 +1655,9 @@ struct CustomThemeSettingsView: View {
             .frame(width: 200, height: 60)
             .overlay(
                 RoundedRectangle(cornerRadius: 16)
-                    .stroke(textColor, lineWidth: selectedRow == 14 ? 4 : 0)
+                    .stroke(textColor, lineWidth: selectedRow == 15 ? 4 : 0)
             )
-            .scaleEffect(selectedRow == 14 ? 1.05 : 1.0)
+            .scaleEffect(selectedRow == 15 ? 1.05 : 1.0)
             .animation(.spring(), value: selectedRow)
         }
         .buttonStyle(PlainButtonStyle())

@@ -583,23 +583,69 @@ struct GlowingDSRenderView: View {
     let screenMode: DSScreenMode
     var isScreenOn: Bool
     var showGlow: Bool = true // [NEW] Optimization flag
+
+    private func pushTouch(_ point: CGPoint, in size: CGSize) {
+        guard size.width > 0, size.height > 0 else { return }
+
+        switch screenMode {
+        case .topOnly:
+            DSInput.shared.setTouch(x: 0, y: 0, pressed: false, source: "SwiftUIOverlay-topOnly")
+
+        case .bottomOnly:
+            let u = max(0, min(1, point.x / size.width))
+            let v = max(0, min(1, point.y / size.height))
+            let x = Int16(min(max(u * 255, 0), 255))
+            let y = Int16(min(max(v * 191, 0), 191))
+            DSInput.shared.setTouch(x: x, y: y, pressed: true, source: "SwiftUIOverlay-bottomOnly")
+
+        case .both:
+            // Only bottom half is touchable in combined layout.
+            let u = point.x / size.width
+            let v = point.y / size.height
+            if u >= 0 && u <= 1 && v >= 0.5 && v <= 1.0 {
+                let touchV = (v - 0.5) * 2.0
+                let x = Int16(min(max(u * 255, 0), 255))
+                let y = Int16(min(max(touchV * 191, 0), 191))
+                DSInput.shared.setTouch(x: x, y: y, pressed: true, source: "SwiftUIOverlay-both")
+            } else {
+                DSInput.shared.setTouch(x: 0, y: 0, pressed: false, source: "SwiftUIOverlay-both-outside")
+            }
+        }
+    }
     
     var body: some View {
         ZStack {
             // Capa de Glow (Fondo desenfocado) - Only render if showGlow is true
             if isScreenOn && showGlow {
-                DSRenderView(renderer: renderer, screenMode: screenMode)
+                DSRenderView(renderer: renderer, screenMode: screenMode, acceptsNativeTouch: false)
                     .cornerRadius(10)
                     .blur(radius: 15)
                     .opacity(0.8)
                     .scaleEffect(1.08)
+                    .allowsHitTesting(false)
             }
             
             // Capa Principal (Nítida)
-            DSRenderView(renderer: renderer, screenMode: screenMode)
+            DSRenderView(renderer: renderer, screenMode: screenMode, acceptsNativeTouch: false)
                 .cornerRadius(10)
                 .shadow(color: .black.opacity(0.8), radius: 10, x: 0, y: 5)
                 .opacity(isScreenOn ? 1.0 : 0.0)
+                .overlay(
+                    GeometryReader { geo in
+                        Color.clear
+                            .contentShape(Rectangle())
+                            .allowsHitTesting(screenMode != .topOnly)
+                            .gesture(
+                                DragGesture(minimumDistance: 0)
+                                    .onChanged { value in
+                                        pushTouch(value.location, in: geo.size)
+                                    }
+                                    .onEnded { _ in
+                                        DSInput.shared.setTouch(x: 0, y: 0, pressed: false, source: "SwiftUIOverlay-end")
+                                    }
+                            )
+                    }
+                )
         }
     }
 }

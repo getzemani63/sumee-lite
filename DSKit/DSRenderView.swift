@@ -10,14 +10,16 @@ public enum DSScreenMode {
 public struct DSRenderView: UIViewRepresentable {
     public let renderer: DSRenderer
     public var screenMode: DSScreenMode = .both
+    public var acceptsNativeTouch: Bool = true
     
-    public init(renderer: DSRenderer, screenMode: DSScreenMode = .both) {
+    public init(renderer: DSRenderer, screenMode: DSScreenMode = .both, acceptsNativeTouch: Bool = true) {
         self.renderer = renderer
         self.screenMode = screenMode
+        self.acceptsNativeTouch = acceptsNativeTouch
     }
 
     public func makeUIView(context: Context) -> MTKView {
-        let mtkView = DSTouchMTKView(screenMode: screenMode)
+        let mtkView = DSTouchMTKView(screenMode: screenMode, acceptsNativeTouch: acceptsNativeTouch)
         mtkView.device = renderer.device
         mtkView.delegate = renderer
         mtkView.framebufferOnly = false
@@ -27,6 +29,8 @@ public struct DSRenderView: UIViewRepresentable {
         mtkView.clearColor = MTLClearColor(red: 0.0, green: 0.0, blue: 0.0, alpha: 1.0)
         mtkView.colorPixelFormat = .bgra8Unorm
         mtkView.contentMode = .scaleToFill
+        mtkView.isUserInteractionEnabled = acceptsNativeTouch
+        mtkView.isMultipleTouchEnabled = true
         
         // Registrar vista en el renderer
         renderer.registerMTKView(mtkView)
@@ -192,15 +196,19 @@ public class DSRenderer: NSObject, MTKViewDelegate {
 
 class DSTouchMTKView: MTKView {
     var screenMode: DSScreenMode = .both
+    var acceptsNativeTouch: Bool = true
+    private var lastTouchCaptureLogAt: TimeInterval = 0
     
-    init(screenMode: DSScreenMode = .both) {
+    init(screenMode: DSScreenMode = .both, acceptsNativeTouch: Bool = true) {
         super.init(frame: .zero, device: nil)
         self.screenMode = screenMode
+        self.acceptsNativeTouch = acceptsNativeTouch
     }
     
     required init(coder: NSCoder) {
         super.init(coder: coder)
         self.screenMode = .both
+        self.acceptsNativeTouch = true
     }
     
     override func touchesBegan(_ touches: Set<UITouch>, with event: UIEvent?) {
@@ -212,21 +220,31 @@ class DSTouchMTKView: MTKView {
     }
     
     override func touchesEnded(_ touches: Set<UITouch>, with event: UIEvent?) {
-        DSInput.shared.setTouch(x: 0, y: 0, pressed: false)
+        DSInput.shared.setTouch(x: 0, y: 0, pressed: false, source: "MTKTouchEnded")
     }
     
     override func touchesCancelled(_ touches: Set<UITouch>, with event: UIEvent?) {
-        DSInput.shared.setTouch(x: 0, y: 0, pressed: false)
+        DSInput.shared.setTouch(x: 0, y: 0, pressed: false, source: "MTKTouchCancelled")
     }
     
     private func handleTouch(_ touches: Set<UITouch>) {
+        guard acceptsNativeTouch else { return }
         guard let touch = touches.first else { return }
         let location = touch.location(in: self)
-        // print("👆 [DSTouch] Touch at \(location)")
+
+        if DSInput.debugTouchLogsEnabled {
+            let now = Date.timeIntervalSinceReferenceDate
+            if now - lastTouchCaptureLogAt > 0.08 {
+                print("📲 [MTKTouch] mode=\(screenMode) loc=(\(Int(location.x)),\(Int(location.y))) size=(\(Int(bounds.width)),\(Int(bounds.height)))")
+                lastTouchCaptureLogAt = now
+            }
+        }
+
         updateInput(at: location)
     }
     
     private func updateInput(at point: CGPoint) {
+        guard acceptsNativeTouch else { return }
         let viewSize = bounds.size
         guard viewSize.width > 0, viewSize.height > 0 else { return }
         
@@ -241,13 +259,13 @@ class DSTouchMTKView: MTKView {
                 // Map to DS bottom screen coordinates (0-255 for X, 0-191 for Y)
                 let finalX = Int16(min(max(u * 255, 0), 255))
                 let finalY = Int16(min(max(v * 191, 0), 191))
-                DSInput.shared.setTouch(x: finalX, y: finalY, pressed: true)
+                DSInput.shared.setTouch(x: finalX, y: finalY, pressed: true, source: "MTK-bottomOnly")
             } else {
-                DSInput.shared.setTouch(x: 0, y: 0, pressed: false)
+                DSInput.shared.setTouch(x: 0, y: 0, pressed: false, source: "MTK-bottomOnly-outside")
             }
         } else if screenMode == .topOnly {
             // Top screen - no touch support
-            DSInput.shared.setTouch(x: 0, y: 0, pressed: false)
+            DSInput.shared.setTouch(x: 0, y: 0, pressed: false, source: "MTK-topOnly")
         } else {
             // .both - Original vertical layout
             let viewRatio = viewSize.width / viewSize.height
@@ -279,12 +297,12 @@ class DSTouchMTKView: MTKView {
                     let touchV = (v - 0.5) * 2.0
                     let finalX = Int16(min(max(u * 255, 0), 255))
                     let finalY = Int16(min(max(touchV * 191, 0), 191))
-                    DSInput.shared.setTouch(x: finalX, y: finalY, pressed: true)
+                    DSInput.shared.setTouch(x: finalX, y: finalY, pressed: true, source: "MTK-both")
                 } else {
-                    DSInput.shared.setTouch(x: 0, y: 0, pressed: false)
+                    DSInput.shared.setTouch(x: 0, y: 0, pressed: false, source: "MTK-both-top")
                 }
             } else {
-                DSInput.shared.setTouch(x: 0, y: 0, pressed: false)
+                DSInput.shared.setTouch(x: 0, y: 0, pressed: false, source: "MTK-both-outside")
             }
         }
     }

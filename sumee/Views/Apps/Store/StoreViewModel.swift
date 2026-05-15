@@ -106,7 +106,10 @@ class StoreViewModel: ObservableObject {
     // Data Sources
     
     private lazy var featuredItems: [StoreItem] = {
-            SystemApp.allCases.filter { !$0.isPreinstalled }.map { app in
+            SystemApp.allCases
+                // TEMP: Hide Slither.io + MeloNX from Store for now.
+                .filter { !$0.isPreinstalled && $0 != .slither && $0 != .meloNX }
+                .map { app in
             StoreItem(
                 id: app.id,
                 title: app.defaultName,
@@ -120,7 +123,10 @@ class StoreViewModel: ObservableObject {
     }()
     
     private lazy var appItems: [StoreItem] = {
-            SystemApp.allCases.filter { !$0.isPreinstalled && $0.category == .app }.map { app in
+            SystemApp.allCases
+                // TEMP: Hide Slither.io + MeloNX from Store for now.
+                .filter { !$0.isPreinstalled && $0.category == .app && $0 != .slither && $0 != .meloNX }
+                .map { app in
             StoreItem(
                 id: app.id,
                 title: app.defaultName,
@@ -134,7 +140,10 @@ class StoreViewModel: ObservableObject {
     }()
     
     private lazy var gameItems: [StoreItem] = {
-            SystemApp.allCases.filter { !$0.isPreinstalled && $0.category == .game }.map { app in
+            SystemApp.allCases
+                // TEMP: Hide Slither.io + MeloNX from Store for now.
+                .filter { !$0.isPreinstalled && $0.category == .game && $0 != .slither && $0 != .meloNX }
+                .map { app in
             StoreItem(
                 id: app.id,
                 title: app.defaultName,
@@ -163,7 +172,6 @@ class StoreViewModel: ObservableObject {
     }
     
     let credits: [CreditItem] = [
-        CreditItem(name: "Stossy11", role: "MeloNX Integration", discordLink: "https://discord.gg/Q2tvMRwb", systemApp: .meloNX),
         CreditItem(name: "Classic Games", role: "TETR.IO", discordLink: "https://discord.com/invite/tetrio", systemApp: .tetris)
     ]
     

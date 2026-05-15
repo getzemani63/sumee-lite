@@ -12,7 +12,7 @@ struct DSEmulatorView: View {
     var closeMenu: () -> Void
     var dismiss: DismissAction? // Optional if we need to dismiss from here (for bios/firmware fail)
     
-    @StateObject private var core = DSCore()
+    @StateObject private var core = DSCore.shared
     @State private var isFastForwardUIHeld = false
     @State private var isCoreFastForwarding = false
     @State private var inputTimer: Timer?
@@ -24,7 +24,7 @@ struct DSEmulatorView: View {
     
     var body: some View {
         Group {
-            if DSBiosManager.shared.areAllBiosPresent {
+            if true { // Desmume HLE: No BIOS required
                 ZStack {
                     if !isAirPlayConnected {
                         Color.black
@@ -60,24 +60,16 @@ struct DSEmulatorView: View {
                     DSVirtualController(isTransparent: true, showInputControls: !gameController.isControllerConnected)
                         .zIndex(10)
                     
-                    // Fast Forward Button
-                    if !showMenu && !gameController.isControllerConnected {
-                        fastForwardButton
-                            .zIndex(20)
-                    }
+                    // Fast Forward Button (TEMPORARILY DISABLED)
+                    // if !showMenu && !gameController.isControllerConnected {
+                    //     fastForwardButton
+                    //         .zIndex(20)
+                    // }
                 }
-            } else {
-                // Placeholder while verifying or importing
-                Color.black.ignoresSafeArea()
-                    .onAppear {
-                        if !DSBiosManager.shared.areAllBiosPresent {
-                            showBiosImporter = true
-                        }
-                    }
             }
         }
         .onAppear {
-            if DSBiosManager.shared.areAllBiosPresent {
+            if true { // Desmume HLE: skip BIOS check
                 // Connect AirPlay Listener
                 Air.connection { connected in
                     DispatchQueue.main.async {
@@ -137,7 +129,7 @@ struct DSEmulatorView: View {
             Air.clearListeners()
             self.isAirPlayConnected = false
             
-            core.stopLoop()
+            core.unloadGameSession()
             gameController.isGameplayMode = false
             inputTimer?.invalidate()
             inputTimer = nil
@@ -187,12 +179,9 @@ struct DSEmulatorView: View {
     }
     
     private func checkAndLoadDS() {
-        let configured = UserDefaults.standard.bool(forKey: "ds_firmware_configured")
-        if !configured {
-            showFirmwareConfig = true
-        } else {
-            loadDSGame()
-        }
+        // Desmume uses HLE BIOS by default, so we can skip the strict firmware check.
+        // If we switch back to MelonDS later, we might enable this again.
+        loadDSGame()
     }
     
     private func loadDSGame() {

@@ -32,9 +32,9 @@ struct DSSkinInputOverlay: View {
     var body: some View {
         ZStack {
             if showInputControls {
-                // Use UIScreen for full edge-to-edge scaling
-                let screenW = UIScreen.main.bounds.width
-                let screenH = UIScreen.main.bounds.height
+                // Use container size from parent layout to keep mapping identical to rendered skin.
+                let screenW = max(1, viewSize.width)
+                let screenH = max(1, viewSize.height)
                 let mapSize = representation.mappingSize ?? SkinSize(width: screenW, height: screenH)
                 
                 // Aspect Fit Logic (Consistent with DSScreensLayout)
@@ -144,6 +144,25 @@ class DSSkinMultiTouchView: UIView {
     
     // Track active inputs
     private var activeButtons: Set<Int> = []
+
+    override init(frame: CGRect) {
+        super.init(frame: frame)
+        backgroundColor = .clear
+        isMultipleTouchEnabled = true
+        isExclusiveTouch = false
+    }
+
+    required init?(coder: NSCoder) {
+        super.init(coder: coder)
+        backgroundColor = .clear
+        isMultipleTouchEnabled = true
+        isExclusiveTouch = false
+    }
+
+    // Critical: do not swallow touches outside interactive skin zones.
+    override func point(inside point: CGPoint, with event: UIEvent?) -> Bool {
+        zones.contains(where: { $0.rect.contains(point) })
+    }
     
     override func touchesBegan(_ touches: Set<UITouch>, with event: UIEvent?) { updateInputs(touches: event?.allTouches) }
     override func touchesMoved(_ touches: Set<UITouch>, with event: UIEvent?) { updateInputs(touches: event?.allTouches) }
@@ -209,9 +228,9 @@ class DSSkinMultiTouchView: UIView {
                         let localY = loc.y - zone.rect.minY
                         let clampedX = max(0, min(localX, zone.rect.width))
                         let clampedY = max(0, min(localY, zone.rect.height))
-                        let dsX = Int16((clampedX / zone.rect.width) * 256.0)
-                        let dsY = Int16((clampedY / zone.rect.height) * 192.0)
-                        DSInput.shared.setTouch(x: dsX, y: dsY, pressed: true)
+                        let dsX = Int16(min(max((clampedX / zone.rect.width) * 255.0, 0), 255))
+                        let dsY = Int16(min(max((clampedY / zone.rect.height) * 191.0, 0), 191))
+                        DSInput.shared.setTouch(x: dsX, y: dsY, pressed: true, source: "SkinOverlay-touchScreen")
                     }
                 }
             }
@@ -231,7 +250,7 @@ class DSSkinMultiTouchView: UIView {
         
         // Reset Touch Screen if no finger is on it
         if !touchScreenActive {
-            DSInput.shared.setTouch(x: 0, y: 0, pressed: false)
+            DSInput.shared.setTouch(x: 0, y: 0, pressed: false, source: "SkinOverlay-touchScreen-end")
         }
         
 
